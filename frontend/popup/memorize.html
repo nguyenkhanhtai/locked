@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Locked - Quick Flashcard</title>
+    <link rel="stylesheet" href="/static/style/variables.css">
+    <link rel="stylesheet" href="/static/style/components.css">
+    <style>
+        body { padding: 30px 40px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--surface); color: var(--text); display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; margin: 0; }
+        h3 { font-size: 24px; margin-top: 0; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        form { display: flex; flex-direction: column; flex: 1; }
+        .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+        .form-group label { font-weight: 600; font-size: 15px; }
+        .form-group input, .form-group select, .form-group textarea { padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border); font-size: 15px; width: 100%; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
+        .actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: auto; padding-top: 20px; }
+        .actions .btn { padding: 10px 24px; font-size: 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h3>📇 Add Flashcard</h3>
+    <form id="flashcard-form">
+        <div class="form-group">
+            <label>Definition (Word):</label>
+            <input type="text" id="word" required placeholder="e.g. Polymorphism">
+        </div>
+        <div class="form-group">
+            <label>Meaning:</label>
+            <textarea id="meaning" rows="3" required placeholder="Explanation of the concept..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Label (comma separated):</label>
+            <input type="text" id="label" placeholder="e.g. OOP, Programming">
+        </div>
+
+        <div class="actions">
+            <button type="button" class="btn outline" id="btn-cancel">Cancel</button>
+            <button type="submit" class="btn primary">Save</button>
+        </div>
+    </form>
+
+    <script>
+        function closeWindow() { if (window.pywebview) pywebview.api.close(); else window.close(); }
+        document.getElementById('btn-cancel').addEventListener('click', closeWindow);
+
+        document.getElementById('flashcard-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                word: document.getElementById('word').value,
+                meaning: document.getElementById('meaning').value,
+                label: document.getElementById('label').value,
+                project_id: null
+            };
+
+            try {
+                const res = await fetch('http://127.0.0.1:8765/api/study/memorize/flashcards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                res.ok ? closeWindow() : alert((await res.json()).message || 'Error occurred');
+            } catch (err) { alert('Failed to connect to backend.'); }
+        });
+    </script>
+</body>
+</html>
