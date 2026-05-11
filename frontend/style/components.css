@@ -1,0 +1,70 @@
+/* Buttons */
+.btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.3s; }
+.btn.primary { background: var(--primary); color: #fff; }
+.btn.primary:hover { opacity: 0.9; }
+.btn.outline { background: transparent; border: 1px solid var(--border); }
+.btn.outline:hover { background: #f9f9f9; }
+.btn.danger { background: transparent; color: #dc3545; border: 1px solid #dc3545; }
+.btn.danger:hover { background: #dc3545; color: #fff; }
+
+/* Lists */
+.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.block-list-container { background: var(--surface); border-radius: 12px; padding: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+.block-list-container h3 { margin-bottom: 20px; color: var(--primary); }
+.list { display: flex; flex-direction: column; gap: 12px; }
+.list-item { display: flex; justify-content: space-between; padding: 15px 20px; border: 1px solid var(--border); border-radius: 8px; align-items: center; background: #fff;}
+.meta-time { font-size: 13px; color: #777; margin-top: 6px; display: inline-block; background: #f0f0f0; padding: 3px 8px; border-radius: 4px;}
+
+/* Top sites bar chart */
+.bar-row { margin-bottom: 15px; }
+.bar-head { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--text); }
+.bar-track { width: 100%; background: var(--border); height: 8px; border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.5s ease-out; }
+
+/* Drawer (Pop từ bên phải) */
+.overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 10; transition: 0.3s; }
+.overlay.hidden { opacity: 0; pointer-events: none; }
+.drawer { position: fixed; top: 0; right: 0; width: 420px; height: 100vh; background: var(--surface); z-index: 20; padding: 35px; box-shadow: -4px 0 20px rgba(0,0,0,0.15); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.drawer.hidden { transform: translateX(100%); }
+.drawer h3 { margin-bottom: 30px; color: var(--primary); }
+
+/* Modal Box (Centered Pop-up) */
+.modal-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--surface); z-index: 20; padding: 35px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 90vw; max-width: 500px; }
+.modal-box.hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -45%) scale(0.95); }
+.modal-box h3 { margin-top: 0; margin-bottom: 25px; color: var(--primary); }
+
+/* Forms */
+.form-group { margin-bottom: 25px; display: flex; flex-direction: column; gap: 10px; }
+.form-group label { font-weight: 600; font-size: 14px; }
+.form-group input, .form-group select { padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,123,255,0.1); }
+.drawer-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 40px; }
+
+/* Flip Card cho Study Room */
+.study-flip-card { background-color: transparent; width: 100%; height: 250px; perspective: 1000px; margin-bottom: 20px; cursor: pointer; }
+.study-flip-card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; }
+.study-flip-card.flipped .study-flip-card-inner { transform: rotateY(180deg); }
+.study-flip-card-front, .study-flip-card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; flex-direction: column; border-radius: 12px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+.study-flip-card-front { background: #fff; border: 2px dashed var(--primary); }
+.study-flip-card-back { background: var(--primary); color: #fff; transform: rotateY(180deg); border: 2px solid var(--primary); }
+
+/* Markdown & LaTeX Rendering Fixes */
+.content-md { line-height: 1.6; overflow-wrap: anywhere; word-wrap: break-word; word-break: break-word; overflow-x: auto; width: 100%; display: block; }
+.content-md * { box-sizing: border-box; max-width: 100%; }
+.content-md > *:first-child { margin-top: 0 !important; }
+.content-md > *:last-child { margin-bottom: 0 !important; }
+.content-md p { margin-bottom: 10px; }
+.content-md p:last-child { margin-bottom: 0; }
+.content-md ul, .content-md ol { margin-bottom: 10px; list-style-position: inside; }
+.content-md li { margin-bottom: 4px; display: list-item; }
+.content-md li::marker { color: inherit;}  
+.content-md pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 13px; margin: 10px 0; max-width: 100%; }
+.content-md code { background: rgba(0,0,0,0.1); padding: 3px 6px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 0.9em; color: #d63384; white-space: pre-wrap; word-break: break-word; }
+.content-md pre code { background: transparent; color: inherit; padding: 0; border-radius: 0; }
+.content-md .katex-display { overflow-x: auto; overflow-y: hidden; padding-bottom: 5px; margin: 10px 0; max-width: 100%; }
+.content-md img { max-width: 100%; height: auto; border-radius: 8px; }
+.content-md table { border-collapse: collapse; width: 100%; margin: 10px 0; display: block; overflow-x: auto; max-width: 100%; }
+.content-md th, .content-md td { border: 1px solid var(--border); padding: 8px 12px; }
+.content-md a { color: var(--primary); text-decoration: none; }
+.content-md a:hover { text-decoration: underline; }
+
