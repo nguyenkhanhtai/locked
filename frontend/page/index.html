@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Locked</title>
+    <link rel="stylesheet" href="/static/style/variables.css">
+    <link rel="stylesheet" href="/static/style/layout.css">
+    <link rel="stylesheet" href="/static/style/components.css">
+    <link rel="stylesheet" href="/static/style/tasks.css">
+    <link rel="icon" href="/static/material/favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Navbar Bên Trái -->
+        <nav class="sidebar">
+            <div class="logo" style="display: flex; align-items: center; gap: 10px;">
+                <img src="/static/material/favicon.ico" alt="Locked Logo"
+                    style="width: 28px; height: 28px; object-fit: contain;">
+                LOCKED
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-target="blocklist">Blocklist</li>
+                <li data-target="tasks">Tasks</li>
+                <li data-target="study">Study</li>
+                <li data-target="chat">Chat</li>
+            </ul>
+            <div class="settings" style="position: relative;">
+                <!-- Nút bấm -->
+                <div id="btn-settings"
+                    style="font-size: 14px; font-weight: bold; color: var(--text); cursor: pointer; padding: 12px; border-radius: 8px; background: #f0f0f0; text-align: center; user-select: none;">
+                    ⚙️ Settings
+                </div>
+            </div>
+        </nav>
+
+        <!-- Màn hình chính Bên Phải -->
+        <main class="main-content">
+            <div id="blocklist" class="page active">
+                <div class="header">
+                    <h2>Blocklist</h2>
+                    <button class="btn primary" id="btn-add-block">Block Website</button>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="block-list-container">
+                        <h3>Blocked Websites</h3>
+                        <div id="block-list" class="list"></div>
+                    </div>
+                    <div class="block-list-container">
+                        <h3>Time Spent</h3>
+                        <div id="top-sites-list" class="list"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="tasks" class="page">
+                <div class="header">
+                    <h2 style="margin: 0;">Task</h2>
+                    <button class="btn primary" id="btn-add-task">Add Task</button>
+                </div>
+                <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <button class="btn primary task-tab-btn" data-tab="list">List</button>
+                    <button class="btn outline task-tab-btn" data-tab="gantt">Calendar</button>
+                </div>
+
+                <div id="task-tab-list" class="task-tab-content">
+                    <div class="toolbar"
+                        style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center; background: var(--surface); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <select id="task-sort"
+                            style="padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+                            <option value="deadline_asc">Sort: Deadline</option>
+                            <option value="priority_desc">Sort: Priority</option>
+                        </select>
+                        <input type="text" id="task-filter-label" placeholder="Filter by label (e.g. code)"
+                            style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); flex: 1;">
+                        <select id="task-page-size"
+                            style="padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+                            <option value="3">Show 3</option>
+                            <option value="5">Show 5</option>
+                            <option value="10" selected>Show 10</option>
+                            <option value="20">Show 20</option>
+                        </select>
+                    </div>
+                    <div id="task-list" class="list" style="margin-bottom: 20px;"></div>
+                    <div class="pagination"
+                        style="display: flex; justify-content: center; gap: 10px; align-items: center;">
+                        <button class="btn outline" id="btn-prev-page">Prev</button>
+                        <span id="page-info" style="font-weight: 600;">Page 1 / 1</span>
+                        <button class="btn outline" id="btn-next-page">Next </button>
+                    </div>
+                </div>
+
+                <div id="task-tab-gantt" class="task-tab-content" style="display: none;">
+                    <!-- Biểu đồ Gantt trực quan -->
+                    <div class="gantt-container"
+                        style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; padding: 15px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0; font-size: 16px;">Calendar</h3>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button class="btn outline" id="gantt-prev-month" style="padding: 4px 10px;">◀</button>
+                                <span id="gantt-month-display"
+                                    style="font-weight: bold; min-width: 100px; text-align: center;">Month Year</span>
+                                <button class="btn outline" id="gantt-next-month" style="padding: 4px 10px;">▶</button>
+                            </div>
+                        </div>
+                        <div id="gantt-chart-content"
+                            style="position: relative; overflow-x: auto; min-height: 100px; padding-bottom: 10px;">
+                            <!-- JS sẽ render Gantt vào đây -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="study" class="page">
+                <div class="header">
+                    <h2>Study Room</h2>
+                    <div class="tabs" style="display: flex; gap: 10px;">
+                        <button class="btn primary tab-btn" data-tab="memorize">Memorize</button>
+                        <button class="btn outline tab-btn" data-tab="thinking">Thinking</button>
+                    </div>
+                </div>
+                <!-- Memorize Area -->
+                <div id="tab-memorize" class="study-tab-content">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 20px;">
+                            <h3 id="memorize-title" style="margin: 0; display: none;"></h3>
+                            <div class="tabs" id="memorize-subtabs" style="display: flex; gap: 10px;">
+                                <button class="btn primary mem-subtab-btn" data-target="projects"
+                                    style="padding: 4px 12px; font-size: 13px;">Projects</button>
+                                <button class="btn outline mem-subtab-btn" data-target="flashcards"
+                                    style="padding: 4px 12px; font-size: 13px;">All Flashcards</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn outline" id="btn-back-study-projects"
+                                style="display: none; font-size: 12px; padding: 6px 12px;">← Quay lại</button>
+                            <button class="btn outline" id="btn-create-project">Tạo Project Mới</button>
+                            <button class="btn primary" id="btn-create-card" style="display: none;">Tạo Card
+                                Mới</button>
+                            <button class="btn outline" id="btn-study-mode" style="display: none;">Start</button>
+                        </div>
+                    </div>
+                    <div id="flashcard-controls"
+                        style="display: none; margin-bottom: 15px; gap: 15px; align-items: center; background: var(--surface); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);">
+                        <input type="text" id="flashcard-label-filter" placeholder="Filter by label (e.g. OOP)..."
+                            style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); flex: 1; font-size: 13px;">
+                        <label
+                            style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: bold; color: var(--primary);">
+                            <input type="checkbox" id="flashcard-select-all" style="transform: scale(1.2);"> Chọn tất cả
+                        </label>
+                    </div>
+                    <div id="flashcard-list" class="list">
+                        <!-- Danh sách flashcards / project sẽ render vào đây -->
+                    </div>
+                </div>
+
+                <!-- Thinking Area -->
+                <div id="tab-thinking" class="study-tab-content" style="display: none;">
+                    <div id="thinking-project-view">
+                        <div
+                            style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                            <input type="text" id="thinking-project-search"
+                                placeholder="🔍 Search problem projects (name)..."
+                                style="padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border); flex: 1; font-size: 14px;">
+                            <button class="btn outline" id="btn-create-thinking-project">Tạo Project Problem</button>
+                        </div>
+                        <div id="thinking-project-list" class="list"></div>
+                    </div>
+
+                    <div id="thinking-workspace" style="display: none;">
+                        <button class="btn outline" id="btn-back-thinking-projects"
+                            style="margin-bottom: 15px; font-size: 12px; padding: 6px 12px;">← Back to list</button>
+                        <div style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
+                            <label style="font-weight: bold; display: flex; align-items: center; gap: 10px;">
+                                Problem Statement:
+                                <button id="btn-save-problem" class="btn outline"
+                                    style="padding: 2px 8px; font-size: 11px;">Save</button>
+                                <button id="btn-preview-problem" class="btn outline"
+                                    style="padding: 2px 8px; font-size: 11px;">Preview Markdown</button>
+                            </label>
+                            <!-- Textarea tự mở rộng -->
+                            <textarea id="thinking-problem-statement"
+                                placeholder="Write a short summary of your problem here..."
+                                style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; font-size: 14px; resize: none; overflow: hidden; min-height: 60px; line-height: 1.5;"></textarea>
+                            <div id="thinking-problem-preview" class="content-md"
+                                style="display: none; width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; background: #fafafa; min-height: 60px; line-height: 1.5;">
+                            </div>
+                        </div>
+                        <div
+                            style="display: flex; gap: 20px; align-items: stretch; overflow-x: auto; padding-bottom: 10px;">
+                            <div
+                                style="flex: 1; min-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column;">
+                                <h4
+                                    style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                    My Knowledge <button class="btn primary" id="btn-add-knowledge"
+                                        style="padding: 4px 10px;">+</button></h4>
+                                <div id="col-knowledge"
+                                    style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto;"></div>
+                            </div>
+                            <div
+                                style="flex: 1; min-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column;">
+                                <h4
+                                    style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                    My Inferences
+                                    <div style="display: flex; gap: 5px;">
+                                        <button class="btn primary" id="btn-add-inference-manual"
+                                            style="padding: 4px 10px;" title="Add inference manually">+</button>
+                                        <button class="btn primary" id="btn-add-inference" style="padding: 4px 10px;"
+                                            title="Kết hợp suy luận">Nạp</button>
+                                    </div>
+                                </h4>
+                                <div id="col-inference"
+                                    style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto;"></div>
+                            </div>
+                            <div
+                                style="flex: 1; min-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column;">
+                                <h4
+                                    style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                    Questions / Hypotheses <button class="btn primary" id="btn-add-question"
+                                        style="padding: 4px 10px;">+</button></h4>
+                                <div id="col-question"
+                                    style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="chat" class="page">
+                <div class="header">
+                    <h2>AI Assistant</h2>
+                </div>
+                <div
+                    style="display: flex; height: calc(100vh - 150px); background: var(--surface); border-radius: 12px; border: 1px solid var(--border); overflow: hidden;">
+                    <aside
+                        style="width: 280px; border-right: 1px solid var(--border); background: #fbfbfb; display: flex; flex-direction: column; min-height: 0;">
+                        <div
+                            style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px;">
+                            <button id="btn-new-chat" class="btn primary" style="width: 100%;">New Chat</button>
+                            <div id="chat-temporary-tab"
+                                style="padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--border); cursor: pointer; font-size: 13px; line-height: 1.4; background: #ffffff;">
+                                <strong style="display: block;">New Chat</strong>
+                            </div>
+                        </div>
+                        <div
+                            style="padding: 12px 16px 8px; font-size: 12px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.04em;">
+                        </div>
+                        <div id="chat-session-list"
+                            style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+                        </div>
+                    </aside>
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: #fff; padding: 14px 18px;">
+                            <div id="chat-current-label" style="font-size: 13px; font-weight: 600; color: #555;">New
+                                Chat</div>
+                            <button id="btn-delete-chat-session" class="btn danger hidden"
+                                style="padding: 4px 10px; font-size: 12px;">Delete Chat</button>
+                        </div>
+                        <div id="chat-messages"
+                            style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                            <div class="chat-message bot"
+                                style="align-self: flex-start; background: #f0f0f0; padding: 12px 16px; border-radius: 12px 12px 12px 0; max-width: 80%; line-height: 1.5;">
+                                👋 Hi! I'm your AI assistant. Have you configured your API key in Settings? What can I
+                                help you with today?
+                            </div>
+                        </div>
+                        <div
+                            style="padding: 15px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; background: #fff;">
+                            <div style="display: flex; gap: 10px; align-items: flex-end;">
+                                <textarea id="chat-input" placeholder="Type a message... (Shift + Enter for a new line)"
+                                    style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border); resize: none; height: 45px; max-height: 150px; font-family: inherit; font-size: 14px; outline: none;"></textarea>
+                                <button id="btn-send-chat" class="btn primary"
+                                    style="padding: 0 20px; height: 45px; display: flex; align-items: center; justify-content: center;">Gửi</button>
+                            </div>
+                            <div
+                                style="display: flex; gap: 10px; align-items: center; font-size: 12px; color: #555; flex-wrap: wrap;">
+                                <label style="font-weight: 600;">Provider:</label>
+                                <select id="chat-provider"
+                                    style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 12px; outline: none;">
+                                    <option value="gemini">Google</option>
+                                    <option value="openai">OpenAI</option>
+                                    <option value="openrouter">OpenRouter</option>
+                                </select>
+                                <label style="font-weight: 600; margin-left: 10px;">Model:</label>
+                                <button id="btn-select-model" class="btn outline"
+                                    style="padding: 4px 12px; font-size: 12px; display: flex; align-items: center; gap: 5px; min-width: 200px; justify-content: space-between; background: #fff; max-width: 280px; overflow: hidden;">
+                                    <span id="current-model-display"
+                                        style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Loading...</span>
+                                    <span style="font-size: 10px; color: #888;">▼</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Màn hình phụ (Drawer) Pop từ bên phải -->
+        <div class="overlay hidden" id="overlay"></div>
+        <div class="drawer hidden" id="drawer">
+            <h3 id="drawer-title">Add Blocked Website</h3>
+            <form id="block-form">
+                <div class="form-group">
+                    <label>URL / Domain:</label>
+                    <input type="text" name="url" required placeholder="Example: facebook.com">
+                </div>
+                <div class="form-group">
+                    <label>Loại chặn:</label>
+                    <select name="mode" id="select-mode">
+                        <option value="temporary">Tạm thời</option>
+                        <option value="permanent">Permanent</option>
+                    </select>
+                    <p id="mode-description" style="font-size: 12px; color: #666; margin-top: 5px; line-height: 1.4;">*
+                        In this mode, you can block a website for up to 11 hours 59 minutes.</p>
+                </div>
+                <div class="form-group" id="group-duration-temp" style="flex-direction: row; gap: 10px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <label>Giờ (0-11):</label>
+                        <input type="number" name="temp_hours" min="0" max="11" value="1">
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <label>Minutes (0-59):</label>
+                        <input type="number" name="temp_minutes" min="0" max="59" value="0">
+                    </div>
+                </div>
+                <div class="form-group" id="group-duration-perm"
+                    style="display: none; flex-direction: column; gap: 10px;">
+                    <label>Days to block (0-365):</label>
+                    <input type="number" name="perm_days" min="0" max="365" value="1">
+                </div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn outline" id="btn-close-drawer">Hủy</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="drawer hidden" id="task-drawer">
+            <h3 id="task-drawer-title">Add Task</h3>
+            <form id="task-form">
+                <input type="hidden" name="id" id="task-id">
+                <div class="form-group">
+                    <label>Task name:</label>
+                    <input type="text" name="name" required placeholder="Team meeting...">
+                </div>
+                <div class="form-group">
+                    <label>Description (optional):</label>
+                    <textarea name="description" rows="3"
+                        style="padding:12px; border-radius:8px; border:1px solid var(--border); width: 100%; font-family: inherit; font-size: 14px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Start date:</label>
+                    <input type="date" name="start_date" required>
+                </div>
+                <div class="form-group" style="flex-direction: row; gap: 10px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <label>Start Hour (0-23):</label>
+                        <input type="number" name="start_hour" min="0" max="23" placeholder="0">
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <label>Start Minute (0-59):</label>
+                        <input type="number" name="start_minute" min="0" max="59" placeholder="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Due date:</label>
+                    <input type="date" name="end_date" required>
+                </div>
+                <div class="form-group" style="flex-direction: row; gap: 10px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <label>Giờ (0-23):</label>
+                        <input type="number" name="end_hour" min="0" max="23" placeholder="23">
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <label>Minutes (0-59):</label>
+                        <input type="number" name="end_minute" min="0" max="59" placeholder="59">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Priority:</label>
+                    <select name="priority">
+                        <option value="1">1 - Thấp nhất</option>
+                        <option value="2">2 - Thấp</option>
+                        <option value="3" selected>3 - Medium</option>
+                        <option value="4">4 - Cao</option>
+                        <option value="5">5 - Khẩn cấp</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Labels (comma separated):</label>
+                    <input type="text" name="labels" placeholder="VD: work, study, urgent">
+                </div>
+                <div class="form-group" style="flex-direction: row; align-items: center;">
+                    <input type="checkbox" name="done" id="task-done-input"
+                        style="width: auto; transform: scale(1.2); cursor: pointer;">
+                    <label for="task-done-input" style="margin: 0; cursor: pointer;">Mark as done</label>
+                </div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn danger hidden" id="btn-delete-task">Delete</button>
+                    <button type="button" class="btn outline" id="btn-close-task-drawer">Hủy</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="drawer hidden" id="flashcard-drawer">
+            <h3 id="flashcard-drawer-title">Add Flashcard</h3>
+            <form id="flashcard-form">
+                <div class="form-group">
+                    <label>Word:</label>
+                    <input type="text" name="word" required placeholder="VD: Polymorphism">
+                </div>
+                <div class="form-group">
+                    <label>Meaning:</label>
+                    <textarea name="meaning" rows="3" required
+                        style="padding:12px; border-radius:8px; border:1px solid var(--border); width: 100%; font-family: inherit; font-size: 14px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Labels (comma separated):</label>
+                    <input type="text" name="label" placeholder="VD: OOP, programming">
+                </div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn outline" id="btn-close-flashcard-drawer">Hủy</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Drawer Tạo Project Flashcard (Memorize) -->
+        <div class="drawer hidden" id="study-project-drawer">
+            <h3 id="study-project-drawer-title">Tạo Project Flashcard</h3>
+            <form id="study-project-form">
+                <div class="form-group">
+                    <label>Project name:</label>
+                    <input type="text" name="name" required placeholder="VD: Tiếng Anh giao tiếp">
+                </div>
+                <div class="form-group">
+                    <label>Description:</label>
+                    <textarea name="description" rows="3"
+                        style="padding:12px; border-radius:8px; border:1px solid var(--border); width: 100%; font-family: inherit; font-size: 14px;"></textarea>
+                </div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn outline" id="btn-close-study-project">Hủy</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Drawer Tạo Project Thinking -->
+        <div class="drawer hidden" id="thinking-project-drawer">
+            <h3 id="thinking-project-drawer-title">Create Thinking Project</h3>
+            <form id="thinking-project-form">
+                <div class="form-group">
+                    <label>Problem name:</label>
+                    <input type="text" name="name" required placeholder="Example: Distributed algorithms">
+                </div>
+                <div class="form-group">
+                    <label>Problem statement:</label>
+                    <textarea name="problem_statement" rows="4"
+                        style="padding:12px; border-radius:8px; border:1px solid var(--border); width: 100%; font-family: inherit; font-size: 14px;"></textarea>
+                </div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn outline" id="btn-close-thinking-project">Hủy</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Modal Thêm Kiến thức / Câu hỏi / Suy luận -->
+        <div class="modal-box hidden" id="thinking-item-drawer" style="max-width: 800px; width: 90vw;">
+            <h3 id="thinking-item-title">Add Item</h3>
+            <form id="thinking-item-form">
+                <input type="hidden" name="id" id="thinking-item-id">
+                <input type="hidden" name="type" id="thinking-item-type">
+                <div class="form-group">
+                    <label>Title:</label>
+                    <input type="text" name="name" required placeholder="Example: Relativity">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                        Description (optional):
+                        <button type="button" id="btn-toggle-thinking-preview" class="btn outline"
+                            style="padding: 2px 8px; font-size: 11px;">Preview Markdown</button>
+                    </label>
+                    <textarea name="description" id="thinking-desc-input" rows="15"
+                        style="padding:12px; border-radius:8px; border:1px solid var(--border); width: 100%; font-family: inherit; font-size: 14px;"></textarea>
+                    <div id="thinking-desc-preview" class="content-md"
+                        style="display: none; padding:12px; border-radius:8px; border:1px solid var(--border); width: 100%; font-size: 14px; background: #fafafa; min-height: 250px; overflow-y: auto; max-height: 500px;">
+                    </div>
+                </div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn danger hidden" id="btn-delete-thinking-item">Delete</button>
+                    <button type="button" class="btn outline" id="btn-close-thinking-drawer">Hủy</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Modal Lớn nạp 5 cột Suy Luận -->
+        <div class="overlay hidden" id="inference-modal-overlay"
+            style="z-index: 50; display: flex; justify-content: center; align-items: center;">
+            <div class="modal-content"
+                style="background: var(--surface); width: 90vw; max-width: 1200px; height: 80vh; border-radius: 12px; padding: 30px; display: flex; flex-direction: column; position: relative;">
+                <h3 style="margin-bottom: 20px; color: var(--primary);">Nạp Suy Luận Mới</h3>
+                <div style="flex: 1; display: flex; overflow-x: auto; gap: 15px; margin-bottom: 20px; padding-bottom: 10px;"
+                    id="inference-columns-container">
+                    <!-- Các cột nguồn (Source) sẽ được JavaScript tiêm vào đây. Tối đa 5 cột -->
+                    <div style="display: flex; align-items: center; justify-content: center; min-width: 250px; border: 2px dashed var(--border); border-radius: 8px; cursor: pointer; background: #f9f9f9;"
+                        id="btn-add-inference-column">
+                        <span style="font-size: 16px; color: var(--primary); font-weight: bold;">+ Nạp Cột Nguồn</span>
+                    </div>
+                </div>
+                <div style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 20px;">
+                    <label style="font-weight: bold; display: block; margin-bottom: 10px;">Result derived from the
+                        sources above:</label>
+                    <div style="display: flex; gap: 15px;">
+                        <input type="text" id="inference-result-name" placeholder="Inference name..."
+                            style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <input type="text" id="inference-result-desc" placeholder="Result description..."
+                            style="flex: 2; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <button class="btn outline" id="btn-close-inference-modal">Hủy</button>
+                        <button class="btn primary" id="btn-save-inference">Save Inference</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Học Flashcard -->
+        <div class="overlay hidden" id="study-session-overlay"
+            style="z-index: 60; display: flex; justify-content: center; align-items: center;">
+            <div class="modal-content"
+                style="background: var(--surface); width: 90vw; max-width: 600px; min-height: 400px; border-radius: 12px; padding: 30px; display: flex; flex-direction: column; position: relative;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 id="study-session-title" style="margin: 0;">Study Mode</h3>
+                    <button class="btn outline" id="btn-close-study-session" style="padding: 4px 10px;">Close</button>
+                </div>
+
+                <div id="study-setup-view">
+                    <p style="margin-bottom: 20px; font-size: 15px;">You selected <strong id="study-selected-count"
+                            style="color: var(--primary);">0</strong> cards. Choose a study mode:</p>
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 30px;">
+                        <button class="btn outline" id="btn-start-skim"
+                            style="padding: 15px 30px; font-size: 16px; border-color: var(--primary); color: var(--primary);">Học</button>
+                        <button class="btn primary" id="btn-start-test"
+                            style="padding: 15px 30px; font-size: 16px;">Kiểm Tra</button>
+                    </div>
+                </div>
+
+                <div id="study-active-view" style="display: none; flex: 1; flex-direction: column;">
+                    <div style="text-align: center; margin-bottom: 15px; font-weight: bold; color: #888;"
+                        id="study-progress">1 / 10</div>
+                    <div class="study-flip-card" id="study-card-container">
+                        <div class="study-flip-card-inner">
+                            <div class="study-flip-card-front">
+                                <h2 id="study-word" style="font-size: 32px; margin-bottom: 10px;">Word</h2>
+                                <p style="font-size: 13px; color: #888;">(Click to flip)</p>
+                            </div>
+                            <div class="study-flip-card-back">
+                                <h2 id="study-meaning" style="font-size: 24px; line-height: 1.4;">Meaning</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="study-test-controls"
+                        style="display: none; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                        <textarea id="study-test-input" rows="3" placeholder="Type your answer..."
+                            style="padding: 12px; border-radius: 8px; border: 1px solid var(--border); width: 100%; font-family: inherit; font-size: 14px;"></textarea>
+                        <button class="btn primary" id="btn-submit-answer"
+                            style="align-self: center; padding: 10px 30px;">Gửi</button>
+                        <div id="study-test-feedback"
+                            style="display: none; padding: 15px; border-radius: 8px; margin-top: 10px; font-size: 15px; text-align: center;">
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: auto;">
+                        <button class="btn outline" id="btn-study-prev" disabled>← Back</button>
+                        <button class="btn primary" id="btn-study-next">Next →</button>
+                    </div>
+                </div>
+
+                <div id="study-summary-view"
+                    style="display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                    <h2 style="color: var(--primary); margin-bottom: 15px; font-size: 32px;">🎉 Finished!</h2>
+                    <p style="margin-bottom: 30px; font-size: 16px;">You reviewed all selected flashcards.</p>
+                    <button class="btn primary" id="btn-study-finish" style="padding: 10px 30px;">Trở Về</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Chọn Model AI -->
+        <div class="overlay hidden" id="model-select-overlay"
+            style="z-index: 60; display: flex; justify-content: center; align-items: center;">
+            <div class="modal-content"
+                style="background: var(--surface); width: 90vw; max-width: 400px; max-height: 80vh; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; position: relative;">
+                <h3 style="margin-top: 0; margin-bottom: 15px; color: var(--primary); font-size: 18px;">Choose Model
+                </h3>
+
+                <div style="margin-bottom: 15px;">
+                    <label
+                        style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 8px;">Other:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="custom-model-input" placeholder="VD: gemini-3.1-pro"
+                            style="flex: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); font-size: 13px;">
+                        <button class="btn primary" id="btn-apply-custom-model" style="padding: 8px 15px;">OK</button>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border); margin: 15px 0;"></div>
+
+                <label style="font-weight: bold; font-size: 13px; display: block; margin-bottom: 10px;">Supported
+                    models:</label>
+                <div id="model-list-container"
+                    style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px; min-height: 200px;">
+                </div>
+
+                <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                    <button class="btn outline" id="btn-close-model-select">Ok</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xem Suy Luận (Reasoning) -->
+    <div class="overlay hidden" id="reasoning-modal-overlay"
+        style="z-index: 70; display: flex; justify-content: center; align-items: center;">
+        <div class="modal-content"
+            style="background: var(--surface); width: 90vw; max-width: 800px; max-height: 80vh; border-radius: 12px; padding: 25px; display: flex; flex-direction: column; position: relative;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--primary); font-size: 18px;">💡 AI Reasoning</h3>
+                <button class="btn outline" id="btn-close-reasoning-modal"
+                    style="padding: 4px 10px; font-size: 12px;">Đóng</button>
+            </div>
+            <div id="reasoning-modal-content" class="content-md"
+                style="flex: 1; overflow-y: auto; font-size: 14px; color: #555;"></div>
+        </div>
+    </div>
+
+    <!-- Modal Cài Đặt (Settings) -->
+    <div class="overlay hidden" id="settings-modal-overlay"
+        style="z-index: 70; display: flex; justify-content: center; align-items: center;">
+        <div class="modal-content"
+            style="background: var(--surface); width: 90vw; max-width: 600px; max-height: 80vh; border-radius: 12px; padding: 25px; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--primary); font-size: 18px;">⚙️ Settings</h3>
+                <button class="btn outline" id="btn-close-settings-modal"
+                    style="padding: 4px 10px; font-size: 12px;">Đóng</button>
+            </div>
+
+            <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button class="btn primary settings-tab-btn" data-tab="settings-general">Cài đặt chung</button>
+                <button class="btn outline settings-tab-btn" data-tab="settings-api">API</button>
+                <button class="btn outline settings-tab-btn" data-tab="settings-model">Model</button>
+            </div>
+
+            <div id="settings-content-wrapper"
+                style="flex: 1; overflow-y: auto; padding-right: 5px; margin-bottom: 15px;">
+                <!-- Tab Cài đặt chung -->
+                <div id="settings-general" class="settings-tab-content">
+                    <h4 style="margin: 0 0 10px; font-size: 14px;">Giao diện</h4>
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                        <label style="font-size: 13px; font-weight: 600; color: var(--text);">Theme color:</label>
+                        <input type="color" id="theme-color" value="#007bff"
+                            style="cursor: pointer; width: 30px; height: 30px; border: none; padding: 0; background: transparent;">
+                    </div>
+
+                    <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
+
+                    <h4 style="margin: 0 0 10px; font-size: 14px;">Hotkeys</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Chặn Website (Block):</label>
+                            <input type="text" id="hotkey-block" placeholder="ctrl+alt+shift+b"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Add Task:</label>
+                            <input type="text" id="hotkey-task" placeholder="ctrl+alt+shift+t"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Add Flashcard (Memorize):</label>
+                            <input type="text" id="hotkey-memorize" placeholder="ctrl+alt+shift+m"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab API -->
+                <div id="settings-api" class="settings-tab-content" style="display: none;">
+                    <h4 style="margin: 0 0 10px; font-size: 14px;">AI Model (Study Room)</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Provider:</label>
+                            <select id="ai-provider"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                                <option value="gemini">Google</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="openrouter">OpenRouter</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Evaluation Mode:</label>
+                            <select id="ai-eval-mode"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                                <option value="similarity">Similarity Based (Embedding)</option>
+                                <option value="model">Model Based (LLM Prompting)</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">API Key:</label>
+                            <input type="password" id="ai-api-key"
+                                placeholder="Enter API key (leave blank to disable AI)..."
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Default Chat Model:</label>
+                            <input type="text" id="ai-chat-model" placeholder="e.g. gemini-2.5-flash"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Default Score Model:</label>
+                            <input type="text" id="ai-eval-model" placeholder="e.g. gemini-2.5-flash"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Model -->
+                <div id="settings-model" class="settings-tab-content" style="display: none;">
+                    <h4 style="margin: 0 0 10px; font-size: 14px;">Model Parameters</h4>
+                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Temperature (0.0 - 2.0):</label>
+                            <input type="number" id="model-temperature" step="0.1" min="0" max="2" value="0.7"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Top K:</label>
+                            <input type="number" id="model-top-k" step="1" min="1" value="40"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-size: 12px; font-weight: 600;">Top P (0.0 - 1.0):</label>
+                            <input type="number" id="model-top-p" step="0.05" min="0" max="1" value="0.9"
+                                style="padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <h4 style="margin: 0 0 10px; font-size: 14px;">System Prompt</h4>
+                    <textarea id="model-system-prompt" rows="8" placeholder="Nhập System Prompt cho mô hình..."
+                        style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+                </div>
+            </div>
+
+            <div
+                style="border-top: 1px solid var(--border); padding-top: 15px; display: flex; justify-content: flex-end;">
+                <button class="btn primary" id="btn-save-settings" style="padding: 8px 20px; font-size: 14px;">Lưu Cài
+                    Đặt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thư viện hiển thị Markdown và LaTeX (KaTeX) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
+
+    <script src="/static/function/app.js?v=2.9"></script>
+    <script src="/static/function/block.js?v=2.3"></script>
+    <script src="/static/function/event.js?v=1.20"></script>
+    <script src="/static/function/study.js?v=2.9"></script>
+    <script src="/static/function/chat.js?v=1.8"></script>
+</body>
+
+</html>
