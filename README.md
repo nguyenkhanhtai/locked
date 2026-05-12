@@ -2,6 +2,10 @@
 
 This is a local study-toolkit app that I made for my IT003 subject. This toolkit includes many tools designed to aid my studies, including website blocking, task lists, and an AI chatbot. I plan to expand this further in the future when I have more ideas.
 
+This app runs locally on your machine without the need for an external server.
+
+![App Preview](frontend/material/sample.png)
+
 ### Tech Stack
 - **Model:** Gemini, OpenAI, OpenRouter
 - **Database:** SQLite
@@ -18,7 +22,6 @@ pip install uv
 git clone https://github.com/nguyenkhanhtai/locked.git
 cd locked
 uv sync
-
 scripts\activate.bat
 ```
 
