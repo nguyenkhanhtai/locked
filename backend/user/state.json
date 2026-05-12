@@ -1,0 +1,30 @@
+{
+    "hotkeys": {
+        "block": "ctrl+alt+shift+b",
+        "task": "ctrl+alt+shift+t",
+        "memorize": "ctrl+alt+shift+m"
+    },
+    "api_keys": {
+        "provider": "gemini",
+        "eval_mode": "model",
+        "gemini": "",
+        "openai": "",
+        "openrouter": "",
+        "chat_models": {
+            "gemini": "",
+            "openai": "",
+            "openrouter": ""
+        },
+        "eval_models": {
+            "gemini": "gemini-2.5-flash",
+            "openai": "gpt-4o-mini",
+            "openrouter": "google/gemini-2.5-pro"
+        }
+    },
+    "model_params": {
+        "temperature": 0.7,
+        "top_k": 40,
+        "top_p": 0.9
+    },
+    "system_prompt": "You are an advanced, helpful AI assistant integrated into the 'Locked' productivity and study application.\nYour primary goals are:\n1. Assist users with their tasks, studying, and technical questions clearly and accurately.\n2. Format your responses using Markdown.\n3. For mathematical equations, use LaTeX. Use single dollar signs ($ ... $) for inline math and double dollar signs ($$ ... $$) for block math. Ensure block math is placed on its own new lines.\n4. When providing code, always use markdown code blocks with the appropriate programming language tag.\n5. Be concise but thorough. Ensure your answers are well-structured and easy to read.\n\nUse the provided tools to browse the web or interact with the app's database if the user requests current information, their schedule, or their blocked sites."
+}
