@@ -1,0 +1,22 @@
+/* CSS dành riêng cho danh sách Công việc (Tasks) */
+
+.task-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; }
+.task-tag { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.tag-priority { background: #ffebee; color: #dc3545; }
+.tag-label { background: #e3f2fd; color: var(--primary); }
+.task-deadline { font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; }
+
+/* Bố cục Task theo hàng ngang chia cột */
+.task-row { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border: 1px solid var(--border); border-radius: 8px; background: #fff; gap: 15px; }
+.task-col { display: flex; flex-direction: column; gap: 4px; }
+.col-header { font-size: 11px; text-transform: uppercase; color: #888; font-weight: 600; letter-spacing: 0.5px; }
+.task-row.is-done { background: #f9f9f9; opacity: 0.7; }
+.task-row.is-done .task-title, .task-row.is-done .task-desc { text-decoration: line-through; color: #888; }
+.task-row.is-overdue { background: #ffebee; border-color: #ffcdd2; }
+.task-main { flex: 2.5; min-width: 0; }
+.task-priority { flex: 1; }
+.task-tags-col { flex: 1.5; }
+.task-time { flex: 1.5; }
+.task-title { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+.task-desc { font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 15px; padding-left: 10px; border-left: 1px solid var(--border); height: 100%; }
