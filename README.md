@@ -22,6 +22,7 @@ pip install uv
 git clone https://github.com/nguyenkhanhtai/locked.git
 cd locked
 uv sync
+.venv\Scripts\activate # On Windows
 scripts\activate.bat
 ```
 
