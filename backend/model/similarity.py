@@ -76,35 +76,145 @@ class CosineSimilarityModel(SimilarityBasedModel):
         self.provider = provider
         self.api_key = api_key
 
-    def _get_embeddings(self, text1: str, text2: str) -> tuple:
+    class EmbeddingEngine(ABC):
+        """
+        Provider-specific embeddings engine.
+
+        Note:
+            We keep engines separate because providers have different endpoints, auth headers,
+            request/response shapes, and model IDs.
+        """
+
+        @abstractmethod
+        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+            """Return one embedding vector per input text (same order)."""
+
+    class GeminiEmbeddingEngine(EmbeddingEngine):
+        """
+        Gemini Embeddings engine (Gemini API).
+
+        Uses REST `batchEmbedContents` with the Gemini Embedding 2 model and a task type optimized
+        for semantic similarity.
+        """
+
+        def __init__(self, api_key: str):
+            self.api_key = api_key
+
+        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+            if not texts:
+                return []
+
+            try:
+                endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents"
+
+                requests = []
+                for t in texts:
+                    requests.append(
+                        {
+                            "model": "models/gemini-embedding-2",
+                            "taskType": "SEMANTIC_SIMILARITY",
+                            "content": {"parts": [{"text": t}]},
+                        }
+                    )
+
+                data = json.dumps({"requests": requests}).encode("utf-8")
+                req = urllib.request.Request(endpoint, data=data, method="POST")
+                req.add_header("x-goog-api-key", self.api_key)
+                req.add_header("Content-Type", "application/json")
+
+                with urllib.request.urlopen(req) as response:
+                    res_data = json.loads(response.read().decode())
+
+                embeddings = res_data.get("embeddings") or []
+                vectors: list[list[float]] = []
+                for emb in embeddings:
+                    if isinstance(emb, dict):
+                        if "values" in emb and isinstance(emb["values"], list):
+                            vectors.append(emb["values"])
+                        elif "embedding" in emb and isinstance(emb["embedding"], list):
+                            vectors.append(emb["embedding"])
+                        else:
+                            vectors.append([])
+                    else:
+                        vectors.append([])
+
+                if len(vectors) != len(texts):
+                    raise ValueError("Gemini embedding response count mismatch.")
+                return vectors
+            except Exception as e:
+                print(f"GeminiEmbeddingEngine Error: {e}")
+                raise
+
+    class OpenAIEmbeddingEngine(EmbeddingEngine):
+        """OpenAI embeddings engine (POST https://api.openai.com/v1/embeddings)."""
+
+        def __init__(self, api_key: str, model: str = "text-embedding-3-small"):
+            self.api_key = api_key
+            self.model = model
+
+        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+            try:
+                endpoint = "https://api.openai.com/v1/embeddings"
+                data = json.dumps({"input": texts, "model": self.model}).encode("utf-8")
+                req = urllib.request.Request(endpoint, data=data, method="POST")
+                req.add_header("Authorization", f"Bearer {self.api_key}")
+                req.add_header("Content-Type", "application/json")
+
+                with urllib.request.urlopen(req) as response:
+                    res_data = json.loads(response.read().decode())
+
+                return [item.get("embedding", []) for item in (res_data.get("data") or [])]
+            except Exception as e:
+                print(f"OpenAIEmbeddingEngine Error: {e}")
+                raise
+
+    class OpenRouterEmbeddingEngine(EmbeddingEngine):
+        """OpenRouter embeddings engine (POST https://openrouter.ai/api/v1/embeddings)."""
+
+        def __init__(self, api_key: str, model: str = "openai/text-embedding-3-small"):
+            self.api_key = api_key
+            self.model = model
+
+        def embed_texts(self, texts: list[str]) -> list[list[float]]:
+            try:
+                endpoint = "https://openrouter.ai/api/v1/embeddings"
+                data = json.dumps({"input": texts, "model": self.model}).encode("utf-8")
+                req = urllib.request.Request(endpoint, data=data, method="POST")
+                req.add_header("Authorization", f"Bearer {self.api_key}")
+                req.add_header("Content-Type", "application/json")
+
+                with urllib.request.urlopen(req) as response:
+                    res_data = json.loads(response.read().decode())
+
+                return [item.get("embedding", []) for item in (res_data.get("data") or [])]
+            except Exception as e:
+                print(f"OpenRouterEmbeddingEngine Error: {e}")
+                raise
+
+    def _get_engine(self) -> "CosineSimilarityModel.EmbeddingEngine":
         if self.provider == "gemini":
-            import google.generativeai as genai
-
-            genai.configure(api_key=self.api_key)
-            embeddings = genai.embed_content(
-                model="models/text-embedding-004",
-                content=[text1, text2],
-            )
-            return embeddings["embedding"][0], embeddings["embedding"][1]
-
-        if self.provider in ["openai", "openrouter"]:
-            endpoint = "https://api.openai.com/v1/embeddings" if self.provider == "openai" else "https://openrouter.ai/api/v1/embeddings"
-            model_name = "text-embedding-3-small" if self.provider == "openai" else "openai/text-embedding-3-small"
-
-            data = json.dumps({"input": [text1, text2], "model": model_name}).encode("utf-8")
-            req = urllib.request.Request(endpoint, data=data, method="POST")
-            req.add_header("Authorization", f"Bearer {self.api_key}")
-            req.add_header("Content-Type", "application/json")
-
-            with urllib.request.urlopen(req) as response:
-                res_data = json.loads(response.read().decode())
-                return res_data["data"][0]["embedding"], res_data["data"][1]["embedding"]
-
+            return self.GeminiEmbeddingEngine(self.api_key)
+        if self.provider == "openai":
+            return self.OpenAIEmbeddingEngine(self.api_key)
+        if self.provider == "openrouter":
+            return self.OpenRouterEmbeddingEngine(self.api_key)
         raise ValueError(f"Provider '{self.provider}' is not supported for similarity embedding.")
 
+    def _get_embeddings(self, text1: str, text2: str) -> tuple:
+        engine = self._get_engine()
+        vectors = engine.embed_texts([text1, text2])
+        if len(vectors) != 2:
+            raise ValueError("Embedding engine did not return 2 vectors.")
+        return vectors[0], vectors[1]
+
     async def calculate_similarity(self, ground_truth: str, user_answer: str) -> float:
-        emb1, emb2 = self._get_embeddings(ground_truth, user_answer)
-        return cosine_similarity(emb1, emb2)
+        try:
+            emb1, emb2 = self._get_embeddings(ground_truth, user_answer)
+            return cosine_similarity(emb1, emb2)
+        except Exception as e:
+            print(f"CosineSimilarityModel calculate error: {e}. Falling back to Traditional.")
+            fallback = TraditionalSimilarityModel()
+            return await fallback.calculate_similarity(ground_truth, user_answer)
 
 
 class PromptBasedSimilarityModel(ModelBasedModel):
@@ -126,7 +236,6 @@ Output ONLY a float number between 0.0 and 1.0 representing the score (1.0 means
 Ground truth: {ground_truth}
 User's answer: {user_answer}"""
         try:
-            print(self.provider, self.api_key)
             chatbot = ChatBot(self.provider, self.api_key, self.model_name, system_prompt="", temperature=0.1)
             response, _ = await chatbot.async_send_message([{"role": "user", "content": prompt}])
 
@@ -144,8 +253,10 @@ User's answer: {user_answer}"""
                 
             return max(0.0, min(1.0, score))
         except Exception as e:
-            print(f"Error parsing similarity score: {e}")
-            return 0.0
+            print(f"PromptBasedSimilarityModel calculate error: {e}. Falling back to Traditional.")
+            fallback = TraditionalSimilarityModel()
+            return await fallback.calculate_similarity(ground_truth, user_answer)
+
 
 
 
