@@ -11,15 +11,15 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse
-import urllib.request
 import urllib.error
 import asyncio
 from database import BlockedDatabase, ConsumptionDatabase, TaskDatabase, StudyDatabase, ChatDatabase
+from schema import serialize_to_dict
 from model.chatbot import ChatBot
 from model.similarity import AIModelFactory, TraditionalSimilarityModel
 import webview
 
-# Thiáº¿t láº­p logger cho cÃ¡c API request
+# Set up Logger for API requests
 log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user", "log")
 os.makedirs(log_dir, exist_ok=True)
 
@@ -44,26 +44,45 @@ event_db = TaskDatabase()
 study_db = StudyDatabase()
 chat_db = ChatDatabase()
 
+import functools
+
+def api_error_handler(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            app_logger.error(f"API Error in {func.__name__}: {str(e)}", exc_info=True)
+            return JSONResponse({
+                "status": "500 <Internal Server Error>",
+                "message": f"An unexpected error occurred: {str(e)}"
+            }, status_code=500)
+    return wrapper
+
 # 1. Definition of classes
 
 class Blocker:
     @staticmethod 
     def get_domain(url: str) -> str:
-        # ThÃªm prefix táº¡m Ä‘á»ƒ urlparse nháº­n diá»‡n Ä‘Æ°á»£c tÃªn miá»n náº¿u ngÆ°á»i dÃ¹ng khÃ´ng nháº­p scheme
-        if not url.startswith(('http://', 'https://')):
-            url = 'http://' + url
+        try:
+            # Add default scheme if not present
+            if not url.startswith(('http://', 'https://')):
+                url = 'http://' + url
+                
+            parsed = urlparse(url)
+            domain = parsed.netloc
             
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        
-        # XÃ³a tiá»n tá»‘ www. Ä‘á»ƒ quy vá» má»™t chuáº©n duy nháº¥t (vd: www.youtube.com -> youtube.com)
-        if domain.startswith('www.'):
-            domain = domain[4:]
-                        
-        return domain
+            # Remove www. prefix for normalization (e.g., www.youtube.com -> youtube.com)
+            if domain.startswith('www.'):
+                domain = domain[4:]
+                            
+            return domain
+        except Exception:
+            return url
 
     class TemporaryBlocker:
         @staticmethod
+        @api_error_handler
         async def add_sites(data):
             url = data.get("url", "")
             if url:
@@ -91,6 +110,7 @@ class Blocker:
             })
 
         @staticmethod
+        @api_error_handler
         async def delete_sites(keyword):
             if keyword:
                 keyword = Blocker.get_domain(keyword)
@@ -103,6 +123,7 @@ class Blocker:
 
     class PermanentBlocker:
         @staticmethod
+        @api_error_handler
         async def add_sites(data):
             url = data.get("url", "")
             if url:
@@ -129,6 +150,7 @@ class Blocker:
             })
 
         @staticmethod
+        @api_error_handler
         async def delete_sites(keyword):
             if keyword:
                 keyword = Blocker.get_domain(keyword)
@@ -146,6 +168,7 @@ class Blocker:
             })
 
     @staticmethod
+    @api_error_handler
     async def route_add_block(request):
         data = await request.json()
         mode = data.get("mode", "temporary")
@@ -154,6 +177,7 @@ class Blocker:
         return await Blocker.TemporaryBlocker.add_sites(data)
 
     @staticmethod
+    @api_error_handler
     async def route_delete_block(request):
         try:
             data = await request.json()
@@ -168,27 +192,74 @@ class Blocker:
         return await Blocker.TemporaryBlocker.delete_sites(keyword)
 
     @staticmethod
+    @api_error_handler
     async def route_get_blocks(request):
-        data = db.get_all_blocks()
+        data = serialize_to_dict(db.get_all_blocks())
         return JSONResponse({"status": "200 <OK>", "data": data})
 
+    class FocusMode:
+        @staticmethod
+        @api_error_handler
+        async def route_toggle(request):
+            data = await request.json()
+            is_active = data.get("is_active", False)
+            duration = data.get("duration", 0) # seconds
+            db.set_focus_mode(is_active, duration)
+            return JSONResponse({"status": "200 <OK>", "message": f"Focus mode {'activated' if is_active else 'deactivated'}"})
+
+        @staticmethod
+        @api_error_handler
+        async def route_get_status(request):
+            status = db.get_focus_status()
+            return JSONResponse({"status": "200 <OK>", "data": status})
+
+        @staticmethod
+        @api_error_handler
+        async def route_get_list(request):
+            focus_list = db.get_focus_list()
+            return JSONResponse({"status": "200 <OK>", "data": focus_list})
+
+        @staticmethod
+        @api_error_handler
+        async def route_add_url(request):
+            data = await request.json()
+            url = data.get("url", "")
+            if url:
+                url = Blocker.get_domain(url)
+                db.add_focus_url(url)
+            return JSONResponse({"status": "200 <OK>", "message": f"Added {url} to focus list"})
+
+        @staticmethod
+        @api_error_handler
+        async def route_delete_url(request):
+            data = await request.json()
+            url = data.get("url", "")
+            if url:
+                url = Blocker.get_domain(url)
+                db.delete_focus_url(url)
+            return JSONResponse({"status": "200 <OK>", "message": f"Deleted {url} from focus list"})
+
     @staticmethod
+    @api_error_handler
     async def route_get_top_sites(request):
-        data = consumption_db.get_top_sites(limit=5)
+        data = serialize_to_dict(consumption_db.get_top_sites(limit=5))
         return JSONResponse({"status": "200 <OK>", "data": data})
 
     @staticmethod
+    @api_error_handler
     async def homepage(request):
         frontend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "page", "index.html")
         return FileResponse(frontend_path)
 
 class EventManager:
     @staticmethod
+    @api_error_handler
     async def route_get_events(request):
-        data = event_db.get_events()
+        data = serialize_to_dict(event_db.get_events())
         return JSONResponse({"status": "200 <OK>", "data": data})
 
     @staticmethod
+    @api_error_handler
     async def route_add_event(request):
         data = await request.json()
         event_id = data.get("id")
@@ -210,6 +281,7 @@ class EventManager:
             return JSONResponse({"status": "200 <OK>", "message": "Task added"})
         
     @staticmethod
+    @api_error_handler
     async def route_delete_event(request):
         data = await request.json()
         event_id = data.get("id")
@@ -220,16 +292,19 @@ class EventManager:
 class StudyManager:
     class Memorize:
         @staticmethod
+        @api_error_handler
         async def route_get_projects(request):
-            return JSONResponse({"status": "200 <OK>", "data": study_db.get_study_projects()})
+            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_study_projects())})
             
         @staticmethod
+        @api_error_handler
         async def route_add_project(request):
             data = await request.json()
             study_db.add_study_project(data.get("name", "Untitled"), data.get("description", ""))
             return JSONResponse({"status": "200 <OK>", "message": "Project added"})
 
         @staticmethod
+        @api_error_handler
         async def route_delete_project(request):
             data = await request.json()
             project_id = data.get("id")
@@ -238,6 +313,7 @@ class StudyManager:
             return JSONResponse({"status": "200 <OK>", "message": "Project deleted"})
 
         @staticmethod
+        @api_error_handler
         async def route_delete_flashcard(request):
             data = await request.json()
             card_id = data.get("id")
@@ -246,11 +322,13 @@ class StudyManager:
             return JSONResponse({"status": "200 <OK>", "message": "Flashcard deleted"})
 
         @staticmethod
+        @api_error_handler
         async def route_get_flashcards(request):
-            data = study_db.get_flashcards()
+            data = serialize_to_dict(study_db.get_flashcards())
             return JSONResponse({"status": "200 <OK>", "data": data})
     
         @staticmethod
+        @api_error_handler
         async def route_add_flashcard(request):
             data = await request.json()
             study_db.add_flashcard(
@@ -263,37 +341,38 @@ class StudyManager:
             return JSONResponse({"status": "200 <OK>", "message": "Flashcard added"})
     
         @staticmethod
+        @api_error_handler
         async def route_check_answer(request):
             data = await request.json()
-            try:
-                req_eval_mode = data.get("eval_mode", "similarity")
-                provider, provider_error = ChatbotManager._resolve_provider(data.get("provider"))
-                if provider_error:
-                    return JSONResponse({"status": "400 <Bad Request>", "message": provider_error}, status_code=400)
+            req_eval_mode = data.get("eval_mode", "similarity")
+            provider, provider_error = ChatbotManager._resolve_provider(data.get("provider"))
+            if provider_error:
+                return JSONResponse({"status": "400 <Bad Request>", "message": provider_error}, status_code=400)
 
-                api_key, api_key_error = ChatbotManager._resolve_api_key(provider, data.get("api_key"))
-                if api_key_error:
-                    app_logger.warning(f"No valid API key for provider '{provider}'. Falling back to Traditional.")
-                    model = TraditionalSimilarityModel()
-                    similarity = await model.calculate_similarity(data.get("ground_truth", ""), data.get("user_answer", ""))
-                else:
-                    eval_model_name = ChatbotManager._resolve_eval_model_name(provider)
-                    model = AIModelFactory.create(req_eval_mode, provider, api_key, eval_model_name)
-                    similarity = await model.calculate_similarity(data.get("ground_truth", ""), data.get("user_answer", ""))
-                    app_logger.info(f"Danh gia bai tap thanh cong bang API cua {provider}")
+            api_key, api_key_error = ChatbotManager._resolve_api_key(provider, data.get("api_key"))
+            if api_key_error:
+                app_logger.warning(f"No valid API key for provider '{provider}'. Falling back to Traditional.")
+                model = TraditionalSimilarityModel()
+                similarity = await model.calculate_similarity(data.get("ground_truth", ""), data.get("user_answer", ""))
+            else:
+                eval_model_name = ChatbotManager._resolve_eval_model_name(provider)
+                model = AIModelFactory.create(req_eval_mode, provider, api_key, eval_model_name)
+                similarity = await model.calculate_similarity(data.get("ground_truth", ""), data.get("user_answer", ""))
+                app_logger.info(f"Danh gia bai tap thanh cong bang API cua {provider}")
 
-                return JSONResponse({"status": "200 <OK>", "similarity": float(similarity)})
-            except Exception as e:
-                return JSONResponse({"status": "500 <Error>", "message": str(e)}, status_code=500)
+            return JSONResponse({"status": "200 <OK>", "similarity": float(similarity)})
 
     class Thinking:
         @staticmethod
+        @api_error_handler
         async def route_get_thinking_projects(request):
-            return JSONResponse({"status": "200 <OK>", "data": study_db.get_thinking_projects()})
+            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_thinking_projects())})
     
         @staticmethod
+        @api_error_handler
         async def route_add_thinking_project(request):
             data = await request.json()
+            app_logger.info(f"Adding/Updating thinking project: {data.get('name')}")
             if "id" in data and "problem_statement" in data and len(data) == 2:
                 study_db.update_thinking_project(data["id"], data["problem_statement"])
             else:
@@ -301,28 +380,43 @@ class StudyManager:
             return JSONResponse({"status": "200 <OK>", "message": "Project saved"})
     
         @staticmethod
+        @api_error_handler
+        async def route_get_all_knowledge(request):
+            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_all_thinking_knowledge())})
+    
+        @staticmethod
+        @api_error_handler
         async def route_get_thinking_items(request):
             project_id = request.query_params.get("project_id")
             if not project_id:
                 return JSONResponse({"status": "400 <Bad Request>", "message": "Missing project_id"}, status_code=400)
-            return JSONResponse({"status": "200 <OK>", "data": study_db.get_thinking_items(project_id)})
+            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_thinking_items(project_id))})
     
         @staticmethod
+        @api_error_handler
         async def route_add_thinking_item(request):
             data = await request.json()
             item_id, item_type, project_id = data.get("id"), data.get("type"), data.get("project_id")
             name, description, source_ids = data.get("name", ""), data.get("description", ""), data.get("source_ids")
-            
+            is_global = data.get("is_global", 0)
+
+            app_logger.info(f"Request to {'update' if item_id else 'add'} thinking item: {name} (type: {item_type})")
+            if description:
+                app_logger.info(f"Item Content: {description[:1000]}...")
+
             if item_id:
-                study_db.update_thinking_item(item_type, item_id, name, description, source_ids)
-                return JSONResponse({"status": "200 <OK>", "message": f"{item_type} updated"})
+                updated_item = study_db.update_thinking_item(item_type, item_id, name, description, source_ids)
+                return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(updated_item)})
             else:
-                if item_type == "knowledge": study_db.add_thinking_knowledge(project_id, name, description)
-                elif item_type == "inference": study_db.add_thinking_inference(project_id, name, description, source_ids or "")
-                elif item_type == "question": study_db.add_thinking_question(project_id, name, description)
-                return JSONResponse({"status": "200 <OK>", "message": f"{item_type} added"})
+                new_item = None
+                if item_type == "knowledge": new_item = study_db.add_thinking_knowledge(project_id, name, description, is_global)
+                elif item_type == "inference": new_item = study_db.add_thinking_inference(project_id, name, description, source_ids or "", is_global)
+                elif item_type == "question": new_item = study_db.add_thinking_question(project_id, name, description, is_global)
+
+                return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(new_item)})
 
         @staticmethod
+        @api_error_handler
         async def route_delete_thinking_project(request):
             data = await request.json()
             project_id = data.get("id")
@@ -331,6 +425,7 @@ class StudyManager:
             return JSONResponse({"status": "200 <OK>", "message": "Project deleted"})
 
         @staticmethod
+        @api_error_handler
         async def route_delete_thinking_item(request):
             data = await request.json()
             item_id = data.get("id")
@@ -339,23 +434,34 @@ class StudyManager:
                 study_db.delete_thinking_item(item_type, item_id)
             return JSONResponse({"status": "200 <OK>", "message": f"{item_type} deleted"})
 
+        @staticmethod
+        @api_error_handler
+        async def route_toggle_global(request):
+            data = await request.json()
+            item_id = data.get("id")
+            item_type = data.get("type")
+            is_global = 1 if data.get("is_global") else 0
+            if item_id and item_type:
+                study_db.toggle_global_thinking_item(item_type, item_id, is_global)
+            return JSONResponse({"status": "200 <OK>", "message": f"Toggled global for {item_type}"})
+
 class ChatbotManager:
     VALID_PROVIDERS = {"gemini", "openai", "openrouter"}
 
     @staticmethod
     def _load_api_settings():
-        settings_path = SettingsManager.get_settings_path()
-        if not os.path.exists(settings_path):
-            return {}
-
         try:
+            settings_path = SettingsManager.get_settings_path()
+            if not os.path.exists(settings_path):
+                return {}
+
             with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
-        except Exception:
+            api_keys = settings.get("api_keys")
+            return api_keys if isinstance(api_keys, dict) else {}
+        except Exception as e:
+            app_logger.error(f"Error loading API settings: {e}")
             return {}
-
-        api_keys = settings.get("api_keys")
-        return api_keys if isinstance(api_keys, dict) else {}
 
     @staticmethod
     def _resolve_provider(requested_provider=None):
@@ -410,6 +516,16 @@ class ChatbotManager:
         return None
 
     @staticmethod
+    def _resolve_inference_model_name(provider: str):
+        stored_models = ChatbotManager._load_api_settings().get("inference_models", {})
+        if isinstance(stored_models, dict):
+            stored_model = (stored_models.get(provider) or "").strip()
+            if stored_model:
+                return stored_model
+
+        return None
+
+    @staticmethod
     def _resolve_session_id(raw_session_id):
         if raw_session_id in [None, ""]:
             return None
@@ -419,24 +535,29 @@ class ChatbotManager:
             return None
 
     @staticmethod
+    @api_error_handler
     async def route_get_sessions(request):
-        return JSONResponse({"status": "200 <OK>", "data": chat_db.get_sessions()})
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(chat_db.get_sessions())})
 
     @staticmethod
+    @api_error_handler
     async def route_create_session(request):
         data = await request.json()
-        return JSONResponse({"status": "200 <OK>", "data": chat_db.create_session(data.get("title"))})
+        session_data = chat_db.create_session(data.get("title"))
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(session_data)})
 
     @staticmethod
+    @api_error_handler
     async def route_get_history(request):
         session_id = ChatbotManager._resolve_session_id(request.query_params.get("session_id"))
         limit = int(request.query_params.get("limit", 10))
         offset = int(request.query_params.get("offset", 0))
         if session_id is None:
             return JSONResponse({"status": "400 <Bad Request>", "message": "Chat session does not exist."}, status_code=400)
-        return JSONResponse({"status": "200 <OK>", "data": chat_db.get_messages(session_id, limit=limit, offset=offset)})
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(chat_db.get_messages(session_id, limit=limit, offset=offset))})
 
     @staticmethod
+    @api_error_handler
     async def route_delete_session(request):
         data = await request.json()
         session_id = ChatbotManager._resolve_session_id(data.get("session_id"))
@@ -446,6 +567,7 @@ class ChatbotManager:
         return JSONResponse({"status": "200 <OK>", "message": "Chat session deleted"})
 
     @staticmethod
+    @api_error_handler
     async def route_chat(request):
         data = await request.json()
         user_msg = data.get("message", "")
@@ -469,21 +591,24 @@ class ChatbotManager:
 
         settings_path = SettingsManager.get_settings_path()
         model_params = {}
+        tool_params = {}
         system_prompt = ""
         if os.path.exists(settings_path):
             try:
                 with open(settings_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    model_params = data.get("model_params", {})
-                    system_prompt = data.get("system_prompt", "")
+                    s_data = json.load(f)
+                    model_params = s_data.get("model_params", {})
+                    tool_params = s_data.get("tool_params", {})
+                    system_prompt = s_data.get("system_prompt", "")
             except Exception:
                 pass
 
         temperature = float(model_params.get("temperature", 0.7))
         top_k = int(model_params.get("top_k", 40))
         top_p = float(model_params.get("top_p", 0.9))
+        max_tool_rounds = int(tool_params.get("max_tool_rounds", 8) or 8)
 
-        chatbot = ChatBot(provider, api_key, model_name, system_prompt, temperature, top_k, top_p)
+        chatbot = ChatBot(provider, api_key, model_name, system_prompt, temperature, top_k, top_p, max_tool_rounds=max_tool_rounds)
         try:
             loop = asyncio.get_event_loop()
             reply, tokens_used = await loop.run_in_executor(None, chatbot.send_message, history)
@@ -495,8 +620,6 @@ class ChatbotManager:
             return JSONResponse({"status": "200 <OK>", "reply": reply, "session_id": session_id, "tokens": tokens_used})
         except urllib.error.HTTPError as e:
             return JSONResponse({"status": "500", "message": f"Provider error ({provider}): {e.code} - {e.read().decode()}"}, status_code=500)
-        except Exception as e:
-            return JSONResponse({"status": "500", "message": f"System error: {str(e)}"}, status_code=500)
 
 class SettingsManager:
     @staticmethod
@@ -507,136 +630,151 @@ class SettingsManager:
 
     @staticmethod
     def init():
-        path = SettingsManager.get_settings_path()
-        default_data = {
-            "hotkeys": {"block": "ctrl+alt+shift+b", "task": "ctrl+alt+shift+t", "memorize": "ctrl+alt+shift+m"},
-            "api_keys": {"provider": "gemini", "gemini": "", "openai": "", "openrouter": "", "chat_models": {"gemini": "", "openai": "", "openrouter": ""}}
-        }
+        try:
+            path = SettingsManager.get_settings_path()
+            default_data = {
+                "hotkeys": {"block": "ctrl+alt+shift+b", "task": "ctrl+alt+shift+t", "memorize": "ctrl+alt+shift+m"},
+                "api_keys": {"provider": "gemini", "gemini": "", "openai": "", "openrouter": "", "chat_models": {"gemini": "", "openai": "", "openrouter": ""}},
+                "tool_params": {"max_tool_rounds": 8},
+            }
 
-        if os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except Exception:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                except Exception:
+                    data = {}
+            else:
                 data = {}
-        else:
-            data = {}
 
-        # Kiá»ƒm tra vÃ  ghi Ä‘Ã¨ tráº¡ng thÃ¡i máº·c Ä‘á»‹nh náº¿u bá»‹ thiáº¿u
-        updated = False
-        if "hotkeys" not in data:
-            data["hotkeys"] = default_data["hotkeys"]
-            updated = True
-        else:
-            for k, v in default_data["hotkeys"].items():
-                if k not in data["hotkeys"]:
-                    data["hotkeys"][k] = v
-                    updated = True
-
-        if "api_keys" not in data or not isinstance(data.get("api_keys"), dict):
-            data["api_keys"] = default_data["api_keys"]
-            updated = True
-        else:
-            api_keys = data["api_keys"]
-            if "provider" not in api_keys:
-                api_keys["provider"] = "gemini"
-                updated = True
-            if "eval_mode" not in api_keys:
-                api_keys["eval_mode"] = "similarity"
-                updated = True
-            for prov in ["gemini", "openai", "openrouter"]:
-                if prov not in api_keys:
-                    api_keys[prov] = ""
-                    updated = True
-            if "chat_models" not in api_keys or not isinstance(api_keys.get("chat_models"), dict):
-                api_keys["chat_models"] = {"gemini": "gemini-2.5-flash", "openai": "gpt-4o-mini", "openrouter": "google/gemini-2.5-pro"}
+            updated = False
+            if "hotkeys" not in data:
+                data["hotkeys"] = default_data["hotkeys"]
                 updated = True
             else:
-                for prov in ["gemini", "openai", "openrouter"]:
-                    if prov not in api_keys["chat_models"]:
-                        api_keys["chat_models"][prov] = ""
+                for k, v in default_data["hotkeys"].items():
+                    if k not in data["hotkeys"]:
+                        data["hotkeys"][k] = v
                         updated = True
-                        
-            if "eval_models" not in api_keys or not isinstance(api_keys.get("eval_models"), dict):
-                api_keys["eval_models"] = {"gemini": "gemini-2.5-flash", "openai": "gpt-4o-mini", "openrouter": "google/gemini-2.5-pro"}
+
+            if "api_keys" not in data or not isinstance(data.get("api_keys"), dict):
+                data["api_keys"] = default_data["api_keys"]
                 updated = True
             else:
+                api_keys = data["api_keys"]
+                if "provider" not in api_keys:
+                    api_keys["provider"] = "gemini"
+                    updated = True
+                if "eval_mode" not in api_keys:
+                    api_keys["eval_mode"] = "similarity"
+                    updated = True
                 for prov in ["gemini", "openai", "openrouter"]:
-                    if prov not in api_keys["eval_models"]:
-                        api_keys["eval_models"][prov] = ""
+                    if prov not in api_keys:
+                        api_keys[prov] = ""
                         updated = True
-            if "key" in api_keys:
-                prov = api_keys.get("provider", "gemini")
-                if prov in ["gemini", "openai", "openrouter"] and api_keys.get("key"):
-                    api_keys[prov] = api_keys["key"]
-                del api_keys["key"]
-            updated = True
+                if "chat_models" not in api_keys or not isinstance(api_keys.get("chat_models"), dict):
+                    api_keys["chat_models"] = {"gemini": "gemini-2.5-flash", "openai": "gpt-4o-mini", "openrouter": "google/gemini-2.5-pro"}
+                    updated = True
+                else:
+                    for prov in ["gemini", "openai", "openrouter"]:
+                        if prov not in api_keys["chat_models"]:
+                            api_keys["chat_models"][prov] = ""
+                            updated = True
+                            
+                if "eval_models" not in api_keys or not isinstance(api_keys.get("eval_models"), dict):
+                    api_keys["eval_models"] = {"gemini": "gemini-2.5-flash", "openai": "gpt-4o-mini", "openrouter": "google/gemini-2.5-pro"}
+                    updated = True
+                else:
+                    for prov in ["gemini", "openai", "openrouter"]:
+                        if prov not in api_keys["eval_models"]:
+                            api_keys["eval_models"][prov] = ""
+                            updated = True
+                            
+                if "inference_models" not in api_keys or not isinstance(api_keys.get("inference_models"), dict):
+                    api_keys["inference_models"] = {"gemini": "gemini-2.5-pro", "openai": "gpt-4o", "openrouter": "google/gemini-2.5-pro"}
+                    updated = True
+                else:
+                    for prov in ["gemini", "openai", "openrouter"]:
+                        if prov not in api_keys["inference_models"]:
+                            api_keys["inference_models"][prov] = ""
+                            updated = True
 
-        if "model_params" not in data:
-            data["model_params"] = {"temperature": 0.7, "top_k": 40, "top_p": 0.9}
-            updated = True
-        else:
-            params = data["model_params"]
-            for k, v in {"temperature": 0.7, "top_k": 40, "top_p": 0.9}.items():
-                if k not in params:
-                    params[k] = v
+            if "model_params" not in data:
+                data["model_params"] = {"temperature": 0.7, "top_k": 40, "top_p": 0.9}
+                updated = True
+            else:
+                params = data["model_params"]
+                for k, v in {"temperature": 0.7, "top_k": 40, "top_p": 0.9}.items():
+                    if k not in params:
+                        params[k] = v
+                        updated = True
+
+            if "tool_params" not in data or not isinstance(data.get("tool_params"), dict):
+                data["tool_params"] = default_data["tool_params"]
+                updated = True
+            else:
+                tp = data["tool_params"]
+                if "max_tool_rounds" not in tp:
+                    tp["max_tool_rounds"] = default_data["tool_params"]["max_tool_rounds"]
                     updated = True
 
-        if "system_prompt" not in data:
-            data["system_prompt"] = "You are an advanced, helpful AI assistant integrated into the 'Locked' productivity and study application.\nYour primary goals are:\n1. Assist users with their tasks, studying, and technical questions clearly and accurately.\n2. Format your responses using Markdown.\n3. For mathematical equations, use LaTeX. Use single dollar signs ($ ... $) for inline math and double dollar signs ($$ ... $$) for block math. Ensure block math is placed on its own new lines.\n4. When providing code, always use markdown code blocks with the appropriate programming language tag.\n5. Be concise but thorough. Ensure your answers are well-structured and easy to read.\n\nUse the provided tools to browse the web or interact with the app's database if the user requests current information, their schedule, or their blocked sites."
-            updated = True
+            if "system_prompt" not in data:
+                data["system_prompt"] = "You are an advanced, helpful AI assistant integrated into the 'Locked' productivity and study application.\nYour primary goals are:\n1. Assist users with their tasks, studying, and technical questions clearly and accurately.\n2. Format your responses using Markdown.\n3. For mathematical equations, use LaTeX. Use single dollar signs ($ ... $) for inline math and double dollar signs ($$ ... $$) for block math. Ensure block math is placed on its own new lines.\n4. When providing code, always use markdown code blocks with the appropriate programming language tag.\n5. When creating flashcards, always use the 'tags' parameter to provide a list of relevant categories/tags to help organize the content.\n6. Be concise but thorough. Ensure your answers are well-structured and easy to read.\n\nUse the provided tools to browse the web or interact with the app's database if the user requests current information, their schedule, or their blocked sites."
+                updated = True
 
-        if updated or not os.path.exists(path):
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
+            if updated or not os.path.exists(path):
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            app_logger.error(f"Settings init error: {e}")
 
     
     @staticmethod
     def save_chat_model(provider: str, model_name: str):
-        path = SettingsManager.get_settings_path()
-        if os.path.exists(path):
-            try:
+        try:
+            path = SettingsManager.get_settings_path()
+            if os.path.exists(path):
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            except Exception:
+            else:
                 data = {}
-        else:
-            data = {}
 
-        if "api_keys" not in data or not isinstance(data.get("api_keys"), dict):
-            data["api_keys"] = {}
+            if "api_keys" not in data or not isinstance(data.get("api_keys"), dict):
+                data["api_keys"] = {}
 
-        api_keys = data["api_keys"]
-        if "chat_models" not in api_keys or not isinstance(api_keys.get("chat_models"), dict):
-            api_keys["chat_models"] = {}
+            api_keys = data["api_keys"]
+            if "chat_models" not in api_keys or not isinstance(api_keys.get("chat_models"), dict):
+                api_keys["chat_models"] = {}
 
-        api_keys["chat_models"][provider] = model_name
+            api_keys["chat_models"][provider] = model_name
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            app_logger.error(f"Error saving chat model: {e}")
 
     @staticmethod
+    @api_error_handler
     async def route_get_settings(request):
         path = SettingsManager.get_settings_path()
+        data = {}
         if os.path.exists(path):
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
             except Exception:
-                data = {}
-        else:
-            data = {}
-
+                pass
         return JSONResponse({"status": "200 <OK>", "data": data})
 
     @staticmethod
+    @api_error_handler
     async def route_save_settings(request):
         data = await request.json()
-        
         path = SettingsManager.get_settings_path()
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
         return JSONResponse({"status": "200 <OK>", "message": "Settings saved"})
+
 
 # 2. API Routing
 frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
@@ -646,6 +784,11 @@ routes = [
     Route('/api/block', endpoint=Blocker.route_add_block, methods=['POST']),
     Route('/api/block', endpoint=Blocker.route_delete_block, methods=['DELETE']),
     Route('/api/blocks', endpoint=Blocker.route_get_blocks, methods=['GET']),
+    Route('/api/focus/toggle', endpoint=Blocker.FocusMode.route_toggle, methods=['POST']),
+    Route('/api/focus/status', endpoint=Blocker.FocusMode.route_get_status, methods=['GET']),
+    Route('/api/focus/list', endpoint=Blocker.FocusMode.route_get_list, methods=['GET']),
+    Route('/api/focus/list', endpoint=Blocker.FocusMode.route_add_url, methods=['POST']),
+    Route('/api/focus/list', endpoint=Blocker.FocusMode.route_delete_url, methods=['DELETE']),
     Route('/api/top-sites', endpoint=Blocker.route_get_top_sites, methods=['GET']),
     Route('/api/events', endpoint=EventManager.route_get_events, methods=['GET']),
     Route('/api/events', endpoint=EventManager.route_add_event, methods=['POST']),
@@ -660,9 +803,11 @@ routes = [
     Route('/api/study/thinking/projects', endpoint=StudyManager.Thinking.route_get_thinking_projects, methods=['GET']),
     Route('/api/study/thinking/projects', endpoint=StudyManager.Thinking.route_add_thinking_project, methods=['POST']),
     Route('/api/study/thinking/projects', endpoint=StudyManager.Thinking.route_delete_thinking_project, methods=['DELETE']),
+    Route('/api/study/thinking/all-knowledge', endpoint=StudyManager.Thinking.route_get_all_knowledge, methods=['GET']),
     Route('/api/study/thinking/items', endpoint=StudyManager.Thinking.route_get_thinking_items, methods=['GET']),
     Route('/api/study/thinking/items', endpoint=StudyManager.Thinking.route_add_thinking_item, methods=['POST']),
     Route('/api/study/thinking/items', endpoint=StudyManager.Thinking.route_delete_thinking_item, methods=['DELETE']),
+    Route('/api/study/thinking/global', endpoint=StudyManager.Thinking.route_toggle_global, methods=['POST']),
     Route('/api/settings', endpoint=SettingsManager.route_get_settings, methods=['GET']),
     Route('/api/settings', endpoint=SettingsManager.route_save_settings, methods=['POST']),
     Route('/api/chat/sessions', endpoint=ChatbotManager.route_get_sessions, methods=['GET']),
