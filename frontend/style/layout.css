@@ -15,4 +15,99 @@
 .page.active { display: block; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 
+/* Floating AI Button */
+#btn-toggle-ai-assistant {
+    position: fixed !important;
+    bottom: 30px !important;
+    right: 30px !important;
+    
+    /* Shape and Size */
+    width: 150px !important;
+    height: 44px !important;
+    border-radius: 22px !important; /* Perfect pill shape (height / 2) */
+    
+    /* Layout */
+    display: none; /* Controlled by JS: inline-flex */
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 15px !important;
+    
+    /* Typography */
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    letter-spacing: 0.5px !important;
+    
+    /* Styling */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
+    z-index: 9999 !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s !important;
+    animation: pulse-ai 2s infinite !important;
+    gap: 8px !important;
+    
+    /* Reset any flex interference */
+    flex: none !important;
+    align-self: auto !important;
+    margin: 0 !important;
+}
 
+#btn-toggle-ai-assistant:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+#btn-toggle-ai-assistant:active {
+    transform: scale(0.95) !important;
+}
+
+@keyframes pulse-ai {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(0, 123, 255, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+    }
+}
+
+/* Assistant Drawer Adjustments */
+#flashcard-assistant.drawer {
+    width: 420px;
+    max-width: 90vw;
+    height: 100vh;
+    padding: 0;
+}
+
+.assistant-model-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.assistant-model-tab:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--primary);
+}
+
+.assistant-model-tab.active {
+    background: #fff;
+    color: var(--primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.assistant-model-tabs {
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
