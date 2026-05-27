@@ -22,6 +22,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const ganttMonthDisplay = document.getElementById("gantt-month-display");
     const ganttChartContent = document.getElementById("gantt-chart-content");
 
+    const GANTT_PALETTE = [
+        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+        '#fd7e14', '#6610f2', '#6f42c1', '#e83e8c', '#20c997',
+        '#007bff', '#28a745', '#17a2b8', '#ffc107', '#dc3545'
+    ];
+
+    const getTaskColor = (task) => {
+        if (task.done) return '#28a745'; // Green for finished tasks
+        if (task.priority >= 5) return '#dc3545'; // Red for critical tasks
+
+        // Use labels to determine color if available
+        if (task.labels) {
+            const firstLabel = task.labels.split(',')[0].trim().toLowerCase();
+            let hash = 0;
+            for (let i = 0; i < firstLabel.length; i++) {
+                hash = firstLabel.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return GANTT_PALETTE[Math.abs(hash) % GANTT_PALETTE.length];
+        }
+
+        // Fallback to name-based hash
+        let hash = 0;
+        const str = task.name || "";
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return GANTT_PALETTE[Math.abs(hash) % GANTT_PALETTE.length];
+    };
+
     // Tabs logic cho Tasks
     const taskTabBtns = document.querySelectorAll('.task-tab-btn');
     taskTabBtns.forEach(btn => {
@@ -106,11 +135,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 const dayObj = new Date(year, month, weekStartDay + i);
                 const dNum = dayObj.getDate();
                 const dMonth = dayObj.getMonth() + 1;
+                const dDayOfWeek = dayObj.getDay();
                 const isExtraDay = dayObj.getMonth() !== month; // Kiểm tra ngày có lấn sang tháng khác 
+                const isWeekend = dDayOfWeek === 0 || dDayOfWeek === 6;
 
                 const leftPct = (i / 7) * 100;
-                const bgStyle = isExtraDay ? 'background: rgba(0,0,0,0.04);' : '';
-                const textColor = isExtraDay ? '#bbb' : '#888';
+                let bgStyle = isExtraDay ? 'background: rgba(0,0,0,0.04);' : (isWeekend ? 'background: rgba(0,123,255,0.03);' : '');
+                const textColor = isExtraDay ? '#bbb' : (isWeekend ? 'var(--primary)' : '#888');
 
                 html += `
                     <div style="position: absolute; top: 0; bottom: 0; left: ${leftPct}%; border-left: 1px dashed #ccc; width: ${100 / 7}%; ${bgStyle} pointer-events: none;">
@@ -129,8 +160,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (weekTasks.length === 0) {
                 html += `<div style="text-align: center; color: #999; font-size: 12px; padding: 10px 0; font-style: italic;">No tasks to show here</div>`;
             } else {
-                // Thuật toán Dilworth / Phân nhóm công việc (Interval Coloring)
-                // 1. Tính toán khoảng thời gian cho từng công việc
+                // TỐI ƯU HÓA: Sử dụng Min-Heap và Thuật toán Tham lam (Greedy)
+                // Thuật toán: Sắp xếp task theo start time, dùng Min-Heap để quản lý thời gian kết thúc của các hàng.
+
+                // 1. Chuẩn bị dữ liệu và sắp xếp theo start time
                 const tasksWithBounds = weekTasks.map(t => {
                     let taskStart = t.start_date || t.created_at || (t.end_date - 86400 * 3);
                     if (taskStart > t.end_date) taskStart = t.end_date - 86400;
@@ -140,49 +173,84 @@ document.addEventListener("DOMContentLoaded", () => {
                         clampedEnd: Math.min(t.end_date, wEndTs)
                     };
                 });
-
-                // 2. Sắp xếp các công việc theo thời gian bắt đầu
                 tasksWithBounds.sort((a, b) => a.clampedStart - b.clampedStart);
 
-                // 3. Phân nhóm vào các hàng (chia chuỗi - chains)
-                const rows = [];
-                tasksWithBounds.forEach(t => {
-                    let assignedRow = -1;
-                    for (let i = 0; i < rows.length; i++) {
-                        if (rows[i] <= t.clampedStart) {
-                            assignedRow = i;
-                            break;
+                // 2. Định nghĩa lớp MinHeap đơn giản để quản lý EndTimes của các Rows
+                class MinHeap {
+                    constructor() { this.heap = []; }
+                    push(val) {
+                        this.heap.push(val);
+                        this.bubbleUp();
+                    }
+                    pop() {
+                        if (this.size() === 1) return this.heap.pop();
+                        const top = this.heap[0];
+                        this.heap[0] = this.heap.pop();
+                        this.bubbleDown();
+                        return top;
+                    }
+                    size() { return this.heap.length; }
+                    peek() { return this.heap[0]; }
+                    bubbleUp() {
+                        let idx = this.heap.length - 1;
+                        while (idx > 0) {
+                            let pIdx = Math.floor((idx - 1) / 2);
+                            if (this.heap[idx].endTime <= this.heap[pIdx].endTime) {
+                                [this.heap[idx], this.heap[pIdx]] = [this.heap[pIdx], this.heap[idx]];
+                                idx = pIdx;
+                            } else break;
                         }
                     }
-
-                    if (assignedRow === -1) {
-                        assignedRow = rows.length;
-                        rows.push(t.clampedEnd);
-                    } else {
-                        // Cập nhật lại thời gian kết thúc của hàng này
-                        rows[assignedRow] = t.clampedEnd;
+                    bubbleDown() {
+                        let idx = 0;
+                        while (true) {
+                            let l = 2 * idx + 1, r = 2 * idx + 2, small = idx;
+                            if (l < this.heap.length && this.heap[l].endTime < this.heap[small].endTime) small = l;
+                            if (r < this.heap.length && this.heap[r].endTime < this.heap[small].endTime) small = r;
+                            if (small !== idx) {
+                                [this.heap[idx], this.heap[small]] = [this.heap[small], this.heap[idx]];
+                                idx = small;
+                            } else break;
+                        }
                     }
-                    t.rowIndex = assignedRow;
+                }
+
+                // 3. Phân bổ Row bằng thuật toán tham lam
+                const heap = new MinHeap();
+                const finalTasks = [];
+                let rowCounter = 0;
+
+                tasksWithBounds.forEach(t => {
+                    // Nếu heap không trống và task bắt đầu sau khi row kết thúc sớm nhất xong việc
+                    if (heap.size() > 0 && t.clampedStart >= heap.peek().endTime) {
+                        const bestRow = heap.pop();
+                        t.rowIndex = bestRow.rowIndex;
+                        heap.push({ endTime: t.clampedEnd, rowIndex: t.rowIndex });
+                    } else {
+                        // Cần một hàng mới
+                        t.rowIndex = rowCounter++;
+                        heap.push({ endTime: t.clampedEnd, rowIndex: t.rowIndex });
+                    }
+                    finalTasks.push(t);
                 });
 
                 // 4. Render giao diện
-                // Khung chứa sẽ có chiều cao dựa vào số lượng hàng cần thiết (26px cao + 8px khoảng cách = 34px)
-                html += `<div style="position: relative; height: ${rows.length * 34}px;">`;
+                html += `<div style="position: relative; height: ${rowCounter * 34}px;">`;
 
                 // Vẽ các nền xám cho từng hàng
-                for (let r = 0; r < rows.length; r++) {
+                for (let r = 0; r < rowCounter; r++) {
                     html += `<div style="position: absolute; top: ${r * 34}px; left: 0; right: 0; height: 26px; background: rgba(0,0,0,0.05); border-radius: 4px; z-index: 1; pointer-events: none;"></div>`;
                 }
 
                 // Vẽ thanh công việc
-                tasksWithBounds.forEach(t => {
+                finalTasks.forEach(t => {
                     let leftPct = ((t.clampedStart - wStartTs) / weekDuration) * 100;
                     let widthPct = ((t.clampedEnd - t.clampedStart) / weekDuration) * 100;
 
-                    if (widthPct < 2) widthPct = 2; // Đảm bảo luôn nhìn thấy task tối thiểu
+                    if (widthPct < 2) widthPct = 2; 
                     if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
 
-                    const color = t.done ? '#28a745' : (t.priority >= 4 ? '#6f42c1' : 'var(--primary)');
+                    const color = getTaskColor(t);
                     const opacity = t.done ? '0.6' : '1';
                     const topPos = t.rowIndex * 34;
 
@@ -252,38 +320,43 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (taskForm) {
         taskForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const fd = new FormData(taskForm);
+            try {
+                e.preventDefault();
+                const fd = new FormData(taskForm);
 
-            const dateStr = fd.get("end_date");
-            let hour = fd.get("end_hour") || "23";
-            let minute = fd.get("end_minute") || "59";
+                const dateStr = fd.get("end_date");
+                let hour = fd.get("end_hour") || "23";
+                let minute = fd.get("end_minute") || "59";
 
-            const endDateObj = new Date(`${dateStr}T${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`);
-            const endTs = Math.floor(endDateObj.getTime() / 1000);
+                const endDateObj = new Date(`${dateStr}T${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`);
+                const endTs = Math.floor(endDateObj.getTime() / 1000);
 
-            const startStr = fd.get("start_date");
-            let startHour = fd.get("start_hour") || "0";
-            let startMinute = fd.get("start_minute") || "0";
-            let startTs = endTs - 86400;
-            if (startStr) {
-                const startDateObj = new Date(`${startStr}T${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`);
-                startTs = Math.floor(startDateObj.getTime() / 1000);
+                const startStr = fd.get("start_date");
+                let startHour = fd.get("start_hour") || "0";
+                let startMinute = fd.get("start_minute") || "0";
+                let startTs = endTs - 86400;
+                if (startStr) {
+                    const startDateObj = new Date(`${startStr}T${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`);
+                    startTs = Math.floor(startDateObj.getTime() / 1000);
+                }
+
+                const payload = {
+                    name: fd.get("name"),
+                    description: fd.get("description"),
+                    start_date: startTs,
+                    end_date: endTs,
+                    priority: parseInt(fd.get("priority")),
+                    labels: fd.get("labels"),
+                    done: fd.get("done") === "on"
+                };
+                if (fd.get("id")) payload.id = fd.get("id");
+                await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                closeTaskDrawer();
+                window.loadTasks();
+            } catch (err) {
+                console.error("Error submitting task:", err);
+                alert("Failed to save task.");
             }
-
-            const payload = {
-                name: fd.get("name"),
-                description: fd.get("description"),
-                start_date: startTs,
-                end_date: endTs,
-                priority: parseInt(fd.get("priority")),
-                labels: fd.get("labels"),
-                done: fd.get("done") === "on"
-            };
-            if (fd.get("id")) payload.id = fd.get("id");
-            await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-            closeTaskDrawer();
-            window.loadTasks();
         });
     }
 
@@ -405,59 +478,75 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnNextPage) btnNextPage.addEventListener("click", () => { taskState.page++; renderTasks(); });
 
     window.toggleTaskDone = async (id, isDone) => {
-        const t = tasksData.find(x => x.id === id);
-        if (!t) return;
-        const payload = { ...t, done: isDone };
-        await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        window.loadTasks();
+        try {
+            const t = tasksData.find(x => x.id === id);
+            if (!t) return;
+            const payload = { ...t, done: isDone };
+            await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            window.loadTasks();
+        } catch (err) {
+            console.error("Error toggling task done:", err);
+        }
     };
 
     window.deleteTaskDirect = async (event, id) => {
-        event.stopPropagation();
-        if (confirm(`Are you sure you want to delete this task?`)) {
-            await fetch("/api/events", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-            window.loadTasks();
+        try {
+            event.stopPropagation();
+            if (confirm(`Are you sure you want to delete this task?`)) {
+                await fetch("/api/events", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+                window.loadTasks();
+            }
+        } catch (err) {
+            console.error("Error deleting task:", err);
         }
     };
 
     window.editTask = (id) => {
-        const t = tasksData.find(x => x.id === id);
-        if (!t) return;
+        try {
+            const t = tasksData.find(x => x.id === id);
+            if (!t) return;
 
-        document.getElementById("task-drawer-title").innerText = "Edit Task";
-        if (taskIdInput) taskIdInput.value = t.id;
-        if (taskForm) {
-            taskForm.elements["name"].value = t.name;
-            taskForm.elements["description"].value = t.description || "";
-            taskForm.elements["priority"].value = t.priority || 1;
-            taskForm.elements["labels"].value = t.labels || "";
-            taskForm.elements["done"].checked = !!t.done;
+            document.getElementById("task-drawer-title").innerText = "Edit Task";
+            if (taskIdInput) taskIdInput.value = t.id;
+            if (taskForm) {
+                taskForm.elements["name"].value = t.name;
+                taskForm.elements["description"].value = t.description || "";
+                taskForm.elements["priority"].value = t.priority || 1;
+                taskForm.elements["labels"].value = t.labels || "";
+                taskForm.elements["done"].checked = !!t.done;
 
-            const pad = n => n.toString().padStart(2, '0');
-            const d = new Date(t.end_date * 1000);
-            taskForm.elements["end_date"].value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-            taskForm.elements["end_hour"].value = d.getHours();
-            taskForm.elements["end_minute"].value = d.getMinutes();
+                const pad = n => n.toString().padStart(2, '0');
+                const d = new Date(t.end_date * 1000);
+                taskForm.elements["end_date"].value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                taskForm.elements["end_hour"].value = d.getHours();
+                taskForm.elements["end_minute"].value = d.getMinutes();
 
-            let startTs = t.start_date || t.created_at || (t.end_date - 86400 * 3);
-            if (startTs > t.end_date) startTs = t.end_date - 86400;
-            const sd = new Date(startTs * 1000);
-            taskForm.elements["start_date"].value = `${sd.getFullYear()}-${pad(sd.getMonth() + 1)}-${pad(sd.getDate())}`;
-            taskForm.elements["start_hour"].value = sd.getHours();
-            taskForm.elements["start_minute"].value = sd.getMinutes();
+                let startTs = t.start_date || t.created_at || (t.end_date - 86400 * 3);
+                if (startTs > t.end_date) startTs = t.end_date - 86400;
+                const sd = new Date(startTs * 1000);
+                taskForm.elements["start_date"].value = `${sd.getFullYear()}-${pad(sd.getMonth() + 1)}-${pad(sd.getDate())}`;
+                taskForm.elements["start_hour"].value = sd.getHours();
+                taskForm.elements["start_minute"].value = sd.getMinutes();
+            }
+
+            if (btnDeleteTask) btnDeleteTask.classList.remove("hidden");
+            window.openDrawer("task-drawer");
+        } catch (err) {
+            console.error("Error editing task:", err);
         }
-
-        if (btnDeleteTask) btnDeleteTask.classList.remove("hidden");
-        window.openDrawer("task-drawer");
     };
 
     if (btnDeleteTask) {
         btnDeleteTask.addEventListener("click", async () => {
-            const id = taskIdInput ? taskIdInput.value : null;
-            if (id && confirm(`Are you sure you want to delete this task?`)) {
-                await fetch("/api/events", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-                closeTaskDrawer();
-                window.loadTasks();
+            try {
+                const id = taskIdInput ? taskIdInput.value : null;
+                if (id && confirm(`Are you sure you want to delete this task?`)) {
+                    await fetch("/api/events", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+                    closeTaskDrawer();
+                    window.loadTasks();
+                }
+            } catch (err) {
+                console.error("Error deleting task from drawer:", err);
             }
         });
     }

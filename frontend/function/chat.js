@@ -2,14 +2,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatInput = document.getElementById("chat-input");
     const btnSend = document.getElementById("btn-send-chat");
     const chatMessages = document.getElementById("chat-messages");
-    const chatProvider = document.getElementById("chat-provider");
-    const btnSelectModel = document.getElementById("btn-select-model");
-    const currentModelDisplay = document.getElementById("current-model-display");
-    const modelSelectOverlay = document.getElementById("model-select-overlay");
-    const customModelInput = document.getElementById("custom-model-input");
-    const btnApplyCustomModel = document.getElementById("btn-apply-custom-model");
-    const modelListContainer = document.getElementById("model-list-container");
-    const btnCloseModelSelect = document.getElementById("btn-close-model-select");
+    
+    // Unified Settings Elements
+    const btnChatOpenSettings = document.getElementById("btn-chat-open-settings");
+    const aiSettingsDrawer = document.getElementById("ai-settings-drawer");
+    const btnCloseAiSettings = document.getElementById("btn-close-ai-settings");
+    const btnAiSettingsDone = document.getElementById("btn-ai-settings-done");
+    const aiProviderOptions = document.querySelectorAll(".ai-provider-option");
+    const aiModelListContainer = document.getElementById("ai-model-list-container");
+    const aiCustomModelInput = document.getElementById("ai-custom-model-input");
+    const btnAiApplyCustom = document.getElementById("btn-ai-apply-custom");
+
+    const chatCurrentProviderBadge = document.getElementById("chat-current-provider-badge");
+    const chatCurrentModelDisplay = document.getElementById("chat-current-model-display");
+
     const btnNewChat = document.getElementById("btn-new-chat");
     const chatTemporaryTab = document.getElementById("chat-temporary-tab");
     const chatSessionList = document.getElementById("chat-session-list");
@@ -22,7 +28,6 @@ document.addEventListener("DOMContentLoaded", () => {
         !chatInput ||
         !btnSend ||
         !chatMessages ||
-        !chatProvider ||
         !btnNewChat ||
         !chatTemporaryTab ||
         !chatSessionList ||
@@ -33,50 +38,155 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const DEFAULT_BOT_MESSAGE = "Hi! I'm your AI assistant. Have you configured your API key in Settings? What can I help you with today?";
     const NEW_CHAT_ID = "new";
-    const MODELS = {
+    const MODELS_DATA = {
         gemini: [
-            "gemini-3.1-pro",
-            "gemini-3-flash-preview",
-            "gemini-3.1-flash-lite",
-            "gemini-3-pro-preview",
             "gemini-2.5-pro",
             "gemini-2.5-flash",
             "gemini-2.5-flash-lite",
-            "gemma-4-31b-it"
+            "gemini-1.5-pro",
+            "gemini-1.5-flash"
         ],
         openai: [
-            "gpt-5.5",
-            "gpt-5.5-pro",
-            "gpt-5.4",
-            "gpt-5.4-pro",
-            "gpt-5.4-mini",
-            "gpt-5.4-nano",
-            "gpt-5",
-            "gpt-5-mini",
-            "gpt-5-nano",
-            "gpt-4.1",
-            "gpt-3.5-turbo",
+            "gpt-4o",
             "gpt-4o-mini",
-            "gpt-4o"
+            "gpt-4-turbo",
+            "gpt-3.5-turbo"
         ],
         openrouter: [
             "google/gemini-2.5-pro",
             "anthropic/claude-3.5-sonnet",
-            "anthropic/claude-3-haiku",
-            "meta-llama/llama-3.1-8b-instruct",
-            "meta-llama/llama-3.1-70b-instruct",
             "deepseek/deepseek-chat",
             "deepseek/deepseek-r1"
         ]
     };
 
+    const CHAT_PROVIDER_KEY = 'locked_chat_page_provider';
+    const CHAT_MODELS_KEY = 'locked_chat_page_saved_models';
+
     let sessions = [];
     let currentView = NEW_CHAT_ID;
-    let savedChatModels = { gemini: "", openai: "", openrouter: "" };
+    
+    let chatSelectedProvider = localStorage.getItem(CHAT_PROVIDER_KEY) || 'gemini';
+    let chatSavedModels = JSON.parse(localStorage.getItem(CHAT_MODELS_KEY) || '{}');
+    if (!chatSavedModels.gemini) {
+        chatSavedModels = { 
+            gemini: "gemini-2.5-flash", 
+            openai: "gpt-4o-mini", 
+            openrouter: "google/gemini-2.5-pro" 
+        };
+    }
+    
     let currentOffset = 0;
     let hasMoreMessages = true;
     let isLoadingHistory = false;
     let currentSessionMessages = [];
+
+    // Unified Drawer Functions
+    const syncChatModelDisplay = () => {
+        const currentModel = chatSavedModels[chatSelectedProvider] || "Select Model...";
+        if (chatCurrentModelDisplay) chatCurrentModelDisplay.innerText = currentModel;
+        if (chatCurrentProviderBadge) {
+            chatCurrentProviderBadge.innerText = chatSelectedProvider.toUpperCase();
+            const colors = { gemini: '#007bff', openai: '#10a37f', openrouter: '#7c3aed' };
+            chatCurrentProviderBadge.style.background = colors[chatSelectedProvider] || 'var(--primary)';
+        }
+    };
+
+    const openDrawer = (id) => {
+        document.getElementById('overlay')?.classList.remove('hidden');
+        document.getElementById(id)?.classList.remove('hidden');
+    };
+    const closeDrawer = (id) => {
+        document.getElementById('overlay')?.classList.add('hidden');
+        document.getElementById(id)?.classList.add('hidden');
+    };
+
+    const renderChatModelList = () => {
+        if (!aiModelListContainer) return;
+        aiModelListContainer.innerHTML = "";
+        const options = MODELS_DATA[chatSelectedProvider] || [];
+        
+        options.forEach(model => {
+            const btn = document.createElement("button");
+            btn.className = "btn outline";
+            btn.style.textAlign = "left";
+            btn.style.padding = "10px 12px";
+            btn.style.fontSize = "13px";
+            btn.style.justifyContent = "flex-start";
+            btn.style.border = "1px solid var(--border)";
+            btn.innerText = model;
+            
+            if (chatSavedModels[chatSelectedProvider] === model) {
+                btn.style.borderColor = "var(--primary)";
+                btn.style.background = "#f0f7ff";
+                btn.style.fontWeight = "bold";
+            }
+            
+            btn.addEventListener("click", () => {
+                chatSavedModels[chatSelectedProvider] = model;
+                localStorage.setItem(CHAT_MODELS_KEY, JSON.stringify(chatSavedModels));
+                syncChatModelDisplay();
+                renderChatModelList();
+            });
+            aiModelListContainer.appendChild(btn);
+        });
+    };
+
+    const updateChatProviderUI = () => {
+        aiProviderOptions.forEach(opt => {
+            if (opt.dataset.provider === chatSelectedProvider) {
+                opt.style.borderColor = "var(--primary)";
+                opt.style.background = "#f0f7ff";
+                opt.style.fontWeight = "bold";
+            } else {
+                opt.style.borderColor = "var(--border)";
+                opt.style.background = "#fff";
+                opt.style.fontWeight = "normal";
+            }
+        });
+    };
+
+    // Chat Settings Handlers
+    if (btnChatOpenSettings) {
+        btnChatOpenSettings.addEventListener('click', () => {
+            // Hijack the global drawer for Chat Page
+            window._ai_config_mode = 'chat'; 
+            updateChatProviderUI();
+            renderChatModelList();
+            if (aiCustomModelInput) aiCustomModelInput.value = chatSavedModels[chatSelectedProvider] || "";
+            openDrawer('ai-settings-drawer');
+        });
+    }
+
+    // Global Drawer Handlers (Listening to clicks on provider options)
+    aiProviderOptions.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (window._ai_config_mode !== 'chat') return;
+            chatSelectedProvider = btn.dataset.provider;
+            localStorage.setItem(CHAT_PROVIDER_KEY, chatSelectedProvider);
+            updateChatProviderUI();
+            renderChatModelList();
+            syncChatModelDisplay();
+        });
+    });
+
+    if (btnAiApplyCustom && aiCustomModelInput) {
+        btnAiApplyCustom.addEventListener('click', () => {
+            if (window._ai_config_mode !== 'chat') return;
+            const val = aiCustomModelInput.value.trim();
+            if (val) {
+                chatSavedModels[chatSelectedProvider] = val;
+                localStorage.setItem(CHAT_MODELS_KEY, JSON.stringify(chatSavedModels));
+                syncChatModelDisplay();
+                renderChatModelList();
+            }
+        });
+    }
+
+    if (btnCloseAiSettings) btnCloseAiSettings.addEventListener('click', () => closeDrawer('ai-settings-drawer'));
+    if (btnAiSettingsDone) btnAiSettingsDone.addEventListener('click', () => closeDrawer('ai-settings-drawer'));
+
+    syncChatModelDisplay();
 
     // Khởi tạo marked.js với cấu hình GFM (hỗ trợ table) và KaTeX support
     if (typeof marked !== 'undefined') {
@@ -262,8 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         sessions.forEach((session) => {
-            const item = document.createElement("button");
-            item.type = "button";
+            const item = document.createElement("div");
             item.setAttribute("data-session-id", String(session.id));
             item.style.padding = "12px";
             item.style.border = "1px solid var(--border)";
@@ -272,13 +381,43 @@ document.addEventListener("DOMContentLoaded", () => {
             item.style.cursor = "pointer";
             item.style.textAlign = "left";
             item.style.display = "flex";
-            item.style.flexDirection = "column";
-            item.style.gap = "4px";
+            item.style.justifyContent = "space-between";
+            item.style.alignItems = "center";
             item.innerHTML = `
-                <strong style="font-size: 13px; color: #333;">${escapeHtml(session.title)}</strong>
-                <span style="font-size: 11px; color: #777;">${session.message_count || 0} messages • ${session.tokens_used || 0} tokens</span>
+                <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; flex: 1;">
+                    <strong style="font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(session.title)}</strong>
+                    <span style="font-size: 11px; color: #777;">${session.message_count || 0} messages • ${session.tokens_used || 0} tokens</span>
+                </div>
+                <button class="btn-delete-session-item" style="background: transparent; border: none; color: #dc3545; cursor: pointer; padding: 4px; display: none;" title="Delete chat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </button>
             `;
-            item.addEventListener("click", async () => {
+            
+            item.addEventListener("mouseenter", () => {
+                const btn = item.querySelector('.btn-delete-session-item');
+                if (btn) btn.style.display = 'block';
+            });
+            item.addEventListener("mouseleave", () => {
+                const btn = item.querySelector('.btn-delete-session-item');
+                if (btn) btn.style.display = 'none';
+            });
+
+            item.addEventListener("click", async (e) => {
+                if (e.target.closest('.btn-delete-session-item')) {
+                    if (confirm("Are you sure you want to delete this chat session?")) {
+                        await fetch("/api/chat/sessions", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ session_id: session.id })
+                        });
+                        if (currentView === String(session.id)) {
+                            loadTemporaryChat();
+                        }
+                        await loadSessions();
+                    }
+                    return;
+                }
+                
                 currentView = String(session.id);
                 localStorage.setItem("locked_active_chat_session", currentView);
                 setActiveSidebar();
@@ -292,63 +431,16 @@ document.addEventListener("DOMContentLoaded", () => {
         setActiveSidebar();
     };
 
-    const renderModelList = () => {
-        if (!modelListContainer) return;
-        const provider = chatProvider.value;
-        const options = MODELS[provider] || [];
-        
-        modelListContainer.innerHTML = "";
-        
-        options.forEach(model => {
-            const btn = document.createElement("button");
-            btn.className = "btn outline";
-            btn.style.textAlign = "left";
-            btn.style.padding = "8px 12px";
-            btn.style.fontSize = "13px";
-            btn.style.justifyContent = "flex-start";
-            btn.style.border = "1px solid var(--border)";
-            btn.innerText = model;
-            
-            if (savedChatModels[provider] === model) {
-                btn.style.borderColor = "var(--primary)";
-                btn.style.background = "#e9f2ff";
-                btn.style.fontWeight = "bold";
-            }
-            
-            btn.addEventListener("click", () => {
-                selectModel(model);
-            });
-            
-            modelListContainer.appendChild(btn);
-        });
-    };
-
-    const selectModel = (model) => {
-        const provider = chatProvider.value;
-        savedChatModels[provider] = model;
-        if (currentModelDisplay) currentModelDisplay.innerText = model;
-        if (modelSelectOverlay) modelSelectOverlay.classList.add("hidden");
-    };
-
-    const syncModelInputFromProvider = () => {
-        const provider = chatProvider.value;
-        const preferredSaved = (savedChatModels[provider] || "").trim();
-        const finalModel = preferredSaved || fallback;
-        savedChatModels[provider] = finalModel;
-        if (currentModelDisplay) currentModelDisplay.innerText = finalModel;
-        renderModelList();
-    };
-
     const loadHistory = async (sessionId, loadMore = false) => {
         if (isLoadingHistory || (!hasMoreMessages && loadMore)) return;
         isLoadingHistory = true;
         
         try {
             if (!loadMore) {
-                // Tải tất cả tin nhắn trong 1 lần gọi (Ví dụ giới hạn là 1000 tin nhắn)
                 const res = await fetch(`/api/chat/history?session_id=${sessionId}&limit=1000`);
                 const json = await res.json();
                 if (!res.ok) {
+                    console.error("Failed to fetch chat history:", json.message);
                     renderMessages([]);
                     isLoadingHistory = false;
                     return;
@@ -381,76 +473,99 @@ document.addEventListener("DOMContentLoaded", () => {
                 hasMoreMessages = false;
             }
         } catch (e) {
+            console.error("Error in loadHistory:", e);
             if (!loadMore) renderMessages([]);
         }
         isLoadingHistory = false;
     };
 
     const loadTemporaryChat = () => {
-        currentView = NEW_CHAT_ID;
-        localStorage.setItem("locked_active_chat_session", currentView);
-        currentOffset = 0;
-        hasMoreMessages = false;
-        currentSessionMessages = [];
-        renderMessages([]);
-        setActiveSidebar();
+        try {
+            currentView = NEW_CHAT_ID;
+            localStorage.setItem("locked_active_chat_session", currentView);
+            currentOffset = 0;
+            hasMoreMessages = false;
+            currentSessionMessages = [];
+            renderMessages([]);
+            setActiveSidebar();
+        } catch (err) {
+            console.error("Error in loadTemporaryChat:", err);
+        }
     };
 
     const createSession = async (title) => {
-        const res = await fetch("/api/chat/sessions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title })
-        });
-        const json = await res.json();
-        if (!res.ok || !json.data) {
-            throw new Error(json.message || "Failed to create a new chat.");
+        try {
+            const res = await fetch("/api/chat/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title })
+            });
+            const json = await res.json();
+            if (!res.ok || !json.data) {
+                throw new Error(json.message || "Failed to create a new chat.");
+            }
+            return json.data;
+        } catch (err) {
+            console.error("Error in createSession:", err);
+            throw err;
         }
-        return json.data;
     };
 
     const loadSessions = async () => {
-        const res = await fetch("/api/chat/sessions");
-        const json = await res.json();
-        sessions = json.data || [];
-        renderSessionList();
+        try {
+            const res = await fetch("/api/chat/sessions");
+            const json = await res.json();
+            sessions = json.data || [];
+            renderSessionList();
+        } catch (err) {
+            console.error("Error in loadSessions:", err);
+        }
     };
 
     if (btnDeleteChatSession) {
         btnDeleteChatSession.addEventListener("click", async () => {
-            if (currentView === NEW_CHAT_ID) return;
-            if (confirm("Are you sure you want to delete this chat session?")) {
-                await fetch("/api/chat/sessions", {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ session_id: currentView })
-                });
-                await loadSessions();
-                loadTemporaryChat();
+            try {
+                if (currentView === NEW_CHAT_ID) return;
+                if (confirm("Are you sure you want to delete this chat session?")) {
+                    const res = await fetch("/api/chat/sessions", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ session_id: currentView })
+                    });
+                    if (!res.ok) throw new Error("Delete failed");
+                    await loadSessions();
+                    loadTemporaryChat();
+                }
+            } catch (err) {
+                console.error("Error deleting session:", err);
+                alert("Failed to delete chat session.");
             }
         });
     }
 
-    const loadSettings = async () => {
+    const loadChatSettings = async () => {
         try {
             const res = await fetch("/api/settings");
             const json = await res.json();
             const apiKeys = json.data?.api_keys || {};
-            savedChatModels = {
-                gemini: apiKeys.chat_models?.gemini || "",
-                openai: apiKeys.chat_models?.openai || "",
-                openrouter: apiKeys.chat_models?.openrouter || ""
-            };
-
-            if (apiKeys.provider) {
-                chatProvider.value = apiKeys.provider;
-                document.getElementById("current-provider-display").innerText = apiKeys.provider.toUpperCase();
+            
+            if (!localStorage.getItem(CHAT_MODELS_KEY)) {
+                chatSavedModels = {
+                    gemini: apiKeys.chat_models?.gemini || "gemini-2.5-flash",
+                    openai: apiKeys.chat_models?.openai || "gpt-4o-mini",
+                    openrouter: apiKeys.chat_models?.openrouter || "google/gemini-2.5-pro"
+                };
+                localStorage.setItem(CHAT_MODELS_KEY, JSON.stringify(chatSavedModels));
+            }
+            
+            if (!localStorage.getItem(CHAT_PROVIDER_KEY)) {
+                chatSelectedProvider = apiKeys.provider || 'gemini';
+                localStorage.setItem(CHAT_PROVIDER_KEY, chatSelectedProvider);
             }
         } catch (e) {
-            savedChatModels = { gemini: "", openai: "", openrouter: "" };
+            console.error("Failed to load settings in chat.js:", e);
         }
-
-        syncModelInputFromProvider();
+        syncChatModelDisplay();
     };
 
     const buildSessionTitle = (message) => {
@@ -460,61 +575,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         return compact.length > 40 ? `${compact.slice(0, 40)}...` : compact;
     };
-
-    chatProvider.addEventListener("change", () => {
-        syncModelInputFromProvider();
-        document.getElementById("current-provider-display").innerText = chatProvider.value.toUpperCase();
-    });
-    
-    if (btnSelectProvider) {
-        btnSelectProvider.addEventListener("click", () => {
-            if (providerSelectOverlay) providerSelectOverlay.classList.remove("hidden");
-            document.querySelectorAll(".provider-btn").forEach(btn => {
-                btn.style.borderColor = btn.dataset.val === chatProvider.value ? "var(--primary)" : "var(--border)";
-                btn.style.background = btn.dataset.val === chatProvider.value ? "#e9f2ff" : "transparent";
-            });
-        });
-    }
-
-    document.querySelectorAll(".provider-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            chatProvider.value = e.target.dataset.val;
-            chatProvider.dispatchEvent(new Event("change"));
-            if (providerSelectOverlay) providerSelectOverlay.classList.add("hidden");
-        });
-    });
-
-    if (btnSelectModel) {
-        btnSelectModel.addEventListener("click", () => {
-            const provider = chatProvider.value;
-            if (customModelInput) customModelInput.value = savedChatModels[provider] || "";
-            renderModelList();
-            if (modelSelectOverlay) modelSelectOverlay.classList.remove("hidden");
-        });
-    }
-
-    if (btnCloseModelSelect) {
-        btnCloseModelSelect.addEventListener("click", () => {
-            if (modelSelectOverlay) modelSelectOverlay.classList.add("hidden");
-        });
-    }
-    
-    if (modelSelectOverlay) {
-        modelSelectOverlay.addEventListener("click", (e) => {
-            if (e.target === modelSelectOverlay) {
-                modelSelectOverlay.classList.add("hidden");
-            }
-        });
-    }
-
-    if (btnApplyCustomModel) {
-        btnApplyCustomModel.addEventListener("click", () => {
-            const val = customModelInput.value.trim();
-            if (val) {
-                selectModel(val);
-            }
-        });
-    }
 
     btnNewChat.addEventListener("click", () => {
         loadTemporaryChat();
@@ -535,10 +595,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const text = chatInput.value.trim();
         if (!text) return;
 
-        const provider = chatProvider.value;
-        const model = (savedChatModels[provider] || "").trim();
+        const provider = chatSelectedProvider;
+        const model = (chatSavedModels[provider] || "").trim();
         if (!model) {
-            appendMessage("Error: model name is required.", "bot");
+            appendMessage("Error: model name is required. Please select a model in AI Configuration.", "bot");
             return;
         }
 
@@ -584,10 +644,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            savedChatModels[provider] = model;
-            renderModelList();
+            chatSavedModels[provider] = model;
+            renderChatModelList();
 
-        appendMessage(json.reply, "bot", true, true);
+            appendMessage(json.reply, "bot", true, true);
             currentOffset += 1;
             currentSessionMessages.push({role: "bot", content: json.reply});
             currentView = String(sessionId);
@@ -625,7 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
         this.style.overflowY = this.scrollHeight > 150 ? "auto" : "hidden";
     });
 
-    Promise.all([loadSettings(), loadSessions()])
+    Promise.all([loadChatSettings(), loadSessions()])
         .then(async () => {
             const savedSession = localStorage.getItem("locked_active_chat_session");
             if (savedSession && savedSession !== NEW_CHAT_ID && sessions.some(s => String(s.id) === savedSession)) {
