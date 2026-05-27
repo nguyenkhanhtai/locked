@@ -1,5 +1,4 @@
-@echo off
-title Locked - System Launcher
+@echo offstitle Locked - System Launcher
 echo ========================================
 echo   LOCKED - STARTING SYSTEM FILES
 echo ========================================
