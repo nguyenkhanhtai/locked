@@ -19,10 +19,11 @@
             <div class="logo" style="display: flex; align-items: center; gap: 10px;">
                 <img src="/static/material/favicon.ico" alt="Locked Logo"
                     style="width: 28px; height: 28px; object-fit: contain;">
-                LOCKED
+                LOCKED 
             </div>
             <ul class="nav-links">
-                <li class="active" data-target="blocklist">Blocklist</li>
+                <li class="active" data-target="welcome">Intro</li>
+                <li data-target="blocklist">Blocklist</li>
                 <li data-target="tasks">Tasks</li>
                 <li data-target="study">Study</li>
                 <li data-target="chat">Chat</li>
@@ -41,7 +42,117 @@
 
             <!-- Vùng chứa nội dung bù lại khoảng lề -->
             <div style="flex: 1; padding: 25px; box-sizing: border-box;">
-                <div id="blocklist" class="page active">
+                <!-- Welcome Page (Default) -->
+                <div id="welcome" class="page active">
+                    <div style="text-align: center; padding: 70px 20px; background: linear-gradient(135deg, var(--primary), #0056b3); border-radius: 24px; color: #fff; margin-bottom: 45px; box-shadow: 0 12px 35px rgba(0,123,255,0.25);">
+                        <h1 style="font-size: 56px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1.5px;">LOCKED - DSA</h1>
+                        <p style="font-size: 24px; opacity: 0.95; font-weight: 500;">Study Assisting Partner</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+                        <!-- Feature 1 -->
+                        <div class="block-list-container welcome-card" 
+                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
+                            onclick="document.querySelector('.nav-links li[data-target=\'blocklist\']').click()">
+                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Block</h3>
+                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
+                                Chặn websites gây sao nhãn.
+                            </p>
+                        </div>
+
+                        <!-- Feature 2 -->
+                        <div class="block-list-container welcome-card" 
+                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
+                            onclick="document.querySelector('.nav-links li[data-target=\'tasks\']').click()">
+                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Task</h3>
+                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
+                                Danh sách công việc để nhắc deadlines.
+                            </p>
+                        </div>
+
+                        <!-- Feature 3 -->
+                        <div class="block-list-container welcome-card" 
+                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
+                            onclick="document.querySelector('.nav-links li[data-target=\'study\']').click()">
+                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Study</h3>
+                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
+                                Các công cụ hỗ trợ.
+                            </p>
+                        </div>
+
+                        <!-- Feature 4 -->
+                        <div class="block-list-container welcome-card" 
+                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
+                            onclick="document.querySelector('.nav-links li[data-target=\'chat\']').click()">
+                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Chatbot</h3>
+                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
+                                Chatbot cho ai sẽ cần.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Technical Concept & Architecture Section -->
+                    <div style="margin-top: 50px; padding: 40px; background: #fff; border-radius: 20px; border: 1px dashed var(--border);">
+                        <h3 style="margin-bottom: 30px; color: var(--primary); font-size: 26px; display: flex; align-items: center; gap: 12px; font-weight: 900;">
+                            <span style="font-size: 32px;">💡</span> Core Concept & Architecture
+                        </h3>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 45px; text-align: left;">
+                            <!-- Architecture Part -->
+                            <div>
+                                <h4 style="font-size: 20px; color: var(--primary); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 10px; font-weight: 800;">
+                                    <span style="width: 25px; height: 3px; background: var(--primary); display: inline-block;"></span> Sơ đồ vận hành
+                                </h4>
+                                <ul style="font-size: 16px; color: #444; line-height: 1.8; padding-left: 25px; margin: 0;">
+                                    <li>
+                                        <strong>2 Server Chạy Local:</strong> Hệ thống sử dụng <strong>Observation Server</strong> để quan sát thời gian thực và <strong>Backend Server</strong> để xử lý logic/AI.
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div style="border-top: 1px solid #eee; width: 60px;"></div>
+
+                            <!-- DSA Part -->
+                            <div>
+                                <h4 style="font-size: 20px; color: var(--primary); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 10px; font-weight: 800;">
+                                    <span style="width: 25px; height: 3px; background: var(--primary); display: inline-block;"></span> Cấu trúc dữ liệu & Giải thuật
+                                </h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px;">
+                                    <div>
+                                        <strong style="font-size: 17px; color: #222; display: block; margin-bottom: 12px;">Dữ liệu (Data Structures):</strong>
+                                        <ul style="font-size: 16px; color: #555; line-height: 1.8; padding-left: 25px; margin: 0;">
+                                            <li><strong>Mảng (Arrays):</strong> Quản lý danh sách tập trung.</li>
+                                            <li><strong>Hàng đợi (Queue):</strong> Xử lý nạp và điều phối Hotkeys.</li>
+                                            <li><strong>Min Heap:</strong> Tối ưu hóa phân nhóm Interval Partitioning.</li>
+                                            <li><strong>B-tree:</strong> Quản lý cơ sở dữ liệu.</li>
+
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <strong style="font-size: 17px; color: #222; display: block; margin-bottom: 12px;">Giải thuật (Algorithms):</strong>
+                                        <ul style="font-size: 16px; color: #555; line-height: 1.8; padding-left: 25px; margin: 0;">
+                                            <li><strong>Semantic Similarity:</strong> Sử dụng Cosine Similarity, N-grams và Min-Hash.</li>
+                                            <li><strong>CRC32:</strong> Hashing siêu tốc để kiểm tra Blocklist.</li>
+                                            <li><strong>Tham lam (Greedy):</strong> Xử lý bài toán Interval Partitioning.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="border-top: 1px solid #eee; width: 60px;"></div>
+
+                            <!-- OOP Part -->
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 35px; text-align: center; padding: 25px;">
+                        <p style="font-size: 16px; color: #777; font-style: italic;">
+                            Select a module from the sidebar on the left to begin your journey.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="blocklist" class="page">
                     <div class="header">
                         <h2>Blocklist</h2>
                         <div style="display: flex; gap: 10px;">
@@ -1085,3 +1196,4 @@
     <script src="/static/function/study.js?v=2.39"></script>
     <script src="/static/function/chat.js?v=1.20"></script>
 </body>
+</html>
