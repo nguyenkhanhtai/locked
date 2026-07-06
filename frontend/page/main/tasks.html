@@ -1,0 +1,65 @@
+{% extends "aux/base.html" %}
+
+{% block content %}
+<div id="tasks" class="page active">
+                    <div class="header">
+                        <h2 style="margin: 0;">Task</h2>
+                        <button class="btn primary" id="btn-add-task">Add Task</button>
+                    </div>
+                    <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="btn primary task-tab-btn" data-tab="list">List</button>
+                        <button class="btn outline task-tab-btn" data-tab="gantt">Calendar</button>
+                    </div>
+
+                    <div id="task-tab-list" class="task-tab-content">
+                        <div class="toolbar"
+                            style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center; background: var(--surface); padding: 15px; border-radius: 8px; border: 1px solid var(--border);">
+                            <select id="task-sort"
+                                style="padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+                                <option value="deadline_asc">Sort: Deadline</option>
+                                <option value="priority_desc">Sort: Priority</option>
+                            </select>
+                            <input type="text" id="task-filter-label" placeholder="Filter by label (e.g. code)"
+                                style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); flex: 1;">
+                            <select id="task-page-size"
+                                style="padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+                                <option value="3">Show 3</option>
+                                <option value="5">Show 5</option>
+                                <option value="10" selected>Show 10</option>
+                                <option value="20">Show 20</option>
+                            </select>
+                        </div>
+                        <div id="task-list" class="list" style="margin-bottom: 20px;"></div>
+                        <div class="pagination"
+                            style="display: flex; justify-content: center; gap: 10px; align-items: center;">
+                            <button class="btn outline" id="btn-prev-page">Prev</button>
+                            <span id="page-info" style="font-weight: 600;">Page 1 / 1</span>
+                            <button class="btn outline" id="btn-next-page">Next </button>
+                        </div>
+                    </div>
+
+                    <div id="task-tab-gantt" class="task-tab-content" style="display: none;">
+                        <!-- Biểu đồ Gantt trực quan -->
+                        <div class="gantt-container"
+                            style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; padding: 15px;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h3 style="margin: 0; font-size: 16px;">Calendar</h3>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button class="btn outline" id="gantt-prev-month"
+                                        style="padding: 4px 10px;">◀</button>
+                                    <span id="gantt-month-display"
+                                        style="font-weight: bold; min-width: 100px; text-align: center;">Month
+                                        Year</span>
+                                    <button class="btn outline" id="gantt-next-month"
+                                        style="padding: 4px 10px;">▶</button>
+                                </div>
+                            </div>
+                            <div id="gantt-chart-content"
+                                style="position: relative; overflow-x: auto; min-height: 100px; padding-bottom: 10px;">
+                                <!-- JS sẽ render Gantt vào đây -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "aux/base.html" %}
+
+{% block content %}
+<div id="blocklist" class="page active">
+                    <div class="header">
+                        <h2>Blocklist</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn outline" id="btn-focus-mode">Focus Mode</button>
+                            <button class="btn primary" id="btn-add-block">Block Website</button>
+                        </div>
+                    </div>
+                    <div id="focus-active-banner" style="display: none; background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: bold;">🔥 Focus Mode is ACTIVE</span>
+                        <span id="focus-countdown">00:00:00</span>
+                        <button class="btn outline" id="btn-stop-focus" style="background: white; color: var(--primary); border: none; padding: 4px 12px;">Stop</button>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="block-list-container">
+                            <h3>Blocked Websites</h3>
+                            <div id="block-list" class="list"></div>
+                        </div>
+                        <div class="block-list-container">
+                            <h3>Time Spent</h3>
+                            <div id="top-sites-list" class="list"></div>
+                        </div>
+                    </div>
+                </div>
+{% endblock %}

@@ -1,871 +1,750 @@
-document.addEventListener("DOMContentLoaded", () => {
-    // 1. Logic chuyển đổi Tab (Memorize <-> Thinking)
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            // Đổi giao diện nút tab
-            tabBtns.forEach(b => {
-                b.classList.remove('primary');
-                b.classList.add('outline');
-            });
-            const currentBtn = e.currentTarget;
-            currentBtn.classList.remove('outline');
-            currentBtn.classList.add('primary');
-            
-            // Lưu trạng thái tab hiện tại vào LocalStorage
-            const targetTab = currentBtn.getAttribute('data-tab');
-            localStorage.setItem('locked_active_study_tab', targetTab);
-
-            // Ẩn/Hiện nội dung bên dưới
-            document.querySelectorAll('.study-tab-content').forEach(tab => tab.style.display = 'none');
-            const targetId = `tab-${targetTab}`;
-            document.getElementById(targetId).style.display = 'block';
-            
-            // Tự động load lại dữ liệu tuỳ vào tab
-            if (targetTab === 'thinking') {
-                loadThinkingProjects();
-            } else {
-                const projTab = document.querySelector('.mem-subtab-btn[data-target="projects"]');
-                if (projTab) {
-                    projTab.click();
-                } else {
-                    loadStudyProjects();
-                }
+// Utility to parse query params
+// ==========================================
+// Custom Prompts
+// ==========================================
+function promptStudyInput(modalTitle, inputLabel, showDesc, defaultTitle = '') {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('study-overlay');
+        const drawer = document.getElementById('study-drawer');
+        const titleEl = document.getElementById('study-drawer-title');
+        const labelEl = document.getElementById('study-label-title');
+        const inputTitle = document.getElementById('study-input-title');
+        const groupDesc = document.getElementById('study-group-desc');
+        const inputDesc = document.getElementById('study-input-desc');
+        const form = document.getElementById('study-form');
+        const btnCancel = document.getElementById('btn-close-study-drawer');
+        
+        titleEl.textContent = modalTitle;
+        labelEl.textContent = inputLabel;
+        inputTitle.value = defaultTitle;
+        inputDesc.value = '';
+        
+        if (showDesc) {
+            groupDesc.style.display = 'block';
+        } else {
+            groupDesc.style.display = 'none';
+        }
+        
+        overlay.classList.remove('hidden');
+        drawer.classList.remove('hidden');
+        inputTitle.focus();
+        
+        const cleanup = () => {
+            overlay.classList.add('hidden');
+            drawer.classList.add('hidden');
+            form.onsubmit = null;
+            btnCancel.onclick = null;
+        };
+        
+        btnCancel.onclick = () => {
+            cleanup();
+            resolve(null);
+        };
+        
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const title = inputTitle.value.trim();
+            const desc = inputDesc.value.trim();
+            if (title) {
+                cleanup();
+                resolve({ title, desc });
             }
-        });
+        };
     });
+}
 
-    // 2. Logic Mở/Đóng Drawer (Pop-up slide bên phải) chung
-    function openDrawer(id) {
-        document.getElementById('overlay').classList.remove('hidden');
-        document.getElementById(id).classList.remove('hidden');
-    }
-    function closeDrawer(id) {
-        document.getElementById('overlay').classList.add('hidden');
-        document.getElementById(id).classList.add('hidden');
-    }
+function promptRecordModal(defaultTitle = '') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('record-modal');
+        const inputTitle = document.getElementById('record-input-title');
+        const inputDesc = document.getElementById('record-input-desc');
+        const form = document.getElementById('record-form');
+        const btnCancel = document.getElementById('btn-close-record-modal');
+        
+        inputTitle.value = defaultTitle;
+        inputDesc.value = '';
+        modal.style.display = 'flex';
+        inputTitle.focus();
+        
+        const cleanup = () => {
+            modal.style.display = 'none';
+            form.onsubmit = null;
+            btnCancel.onclick = null;
+        };
+        
+        btnCancel.onclick = () => {
+            cleanup();
+            resolve(null);
+        };
+        
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const title = inputTitle.value.trim();
+            const desc = inputDesc.value.trim();
+            if (title) {
+                cleanup();
+                resolve({ title, desc });
+            }
+        };
+    });
+}
 
-    // Đóng drawer/modal khi bấm ra ngoài nền đen (Overlay)
-    document.getElementById('overlay')?.addEventListener('click', (e) => {
-        if (e.target.id === 'overlay') {
-            ['study-project-drawer', 'thinking-project-drawer', 'thinking-item-drawer', 'flashcard-drawer']
-                .forEach(id => closeDrawer(id));
+function getQueryParams() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        view: params.get('view') || 'projects',
+        id: params.get('id'),
+        projectId: params.get('projectId') // for breadcrumbs
+    };
+}
+
+function updateUrl(params) {
+    const url = new URL(window.location);
+    Object.keys(params).forEach(key => {
+        if (params[key]) {
+            url.searchParams.set(key, params[key]);
+        } else {
+            url.searchParams.delete(key);
         }
     });
-    document.getElementById('inference-modal-overlay')?.addEventListener('click', (e) => {
-        if (e.target.id === 'inference-modal-overlay') {
-            e.target.classList.add('hidden');
+    window.history.pushState({}, '', url);
+    handleRoute();
+}
+
+function updateBreadcrumbs(path) {
+    const container = document.getElementById('study-breadcrumbs');
+    container.innerHTML = '';
+    path.forEach((p, idx) => {
+        const isLast = idx === path.length - 1;
+        const span = document.createElement('span');
+        if (isLast) {
+            span.textContent = p.label;
+            span.style.fontWeight = 'bold';
+        } else {
+            const a = document.createElement('a');
+            a.textContent = p.label;
+            a.href = '#';
+            a.style.color = 'var(--primary)';
+            a.style.textDecoration = 'none';
+            a.onclick = (e) => {
+                e.preventDefault();
+                updateUrl(p.params);
+            };
+            span.appendChild(a);
+            
+            const sep = document.createElement('span');
+            sep.textContent = ' > ';
+            sep.style.margin = '0 5px';
+            sep.style.color = 'var(--text-muted)';
+            span.appendChild(sep);
         }
+        container.appendChild(span);
     });
+}
 
-    // --- PHẦN MEMORIZE ---
-    let currentStudyProject = null;
-    // Tạo Project Flashcard
-    const btnCreateStudyProject = document.getElementById('btn-create-project');
-    const btnCreateCard = document.getElementById('btn-create-card');
-    const btnStudyMode = document.getElementById('btn-study-mode');
-    const btnBackStudyProjects = document.getElementById('btn-back-study-projects');
-    const titleMemorize = document.getElementById('memorize-title');
+function hideAllViews() {
+    document.querySelectorAll('.study-view').forEach(el => el.style.display = 'none');
+}
 
-    // Xử lý chuyển đổi Sub-tab trong Memorize
-    const memSubtabs = document.querySelectorAll('.mem-subtab-btn');
-    memSubtabs.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            memSubtabs.forEach(b => {
-                b.classList.remove('primary');
-                b.classList.add('outline');
-            });
-            const currentBtn = e.currentTarget;
-            currentBtn.classList.remove('outline');
-            currentBtn.classList.add('primary');
+// ==========================================
+// API Helpers
+// ==========================================
+async function apiCall(url, method = 'GET', body = null) {
+    const options = { method, headers: {} };
+    if (body) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, options);
+    return await res.json();
+}
 
-            const target = currentBtn.getAttribute('data-target');
-            currentStudyProject = null;
-            selectedCardIds.clear();
-            currentLabelFilter = '';
-            if(document.getElementById('flashcard-label-filter')) document.getElementById('flashcard-label-filter').value = '';
+// ==========================================
+// Views
+// ==========================================
 
-            if (target === 'projects') {
-                if(btnCreateStudyProject) btnCreateStudyProject.style.display = 'inline-block';
-                if(btnCreateCard) btnCreateCard.style.display = 'none';
-                if(btnStudyMode) btnStudyMode.style.display = 'none';
-                if(document.getElementById('flashcard-controls')) document.getElementById('flashcard-controls').style.display = 'none';
-                if(titleMemorize) titleMemorize.style.display = 'none';
-                loadStudyProjects();
-            } else {
-                if(btnCreateStudyProject) btnCreateStudyProject.style.display = 'none';
-                if(btnCreateCard) btnCreateCard.style.display = 'inline-block';
-                if(btnStudyMode) btnStudyMode.style.display = 'inline-block';
-                if(document.getElementById('flashcard-controls')) document.getElementById('flashcard-controls').style.display = 'flex';
-                if(titleMemorize) titleMemorize.style.display = 'none';
-                loadFlashcards(null);
-            }
-        });
-    });
-
-    if(btnCreateStudyProject) btnCreateStudyProject.addEventListener('click', () => openDrawer('study-project-drawer'));
-    document.getElementById('btn-close-study-project')?.addEventListener('click', () => closeDrawer('study-project-drawer'));
+async function renderProjectsView() {
+    hideAllViews();
+    document.getElementById('view-projects').style.display = 'flex';
+    updateBreadcrumbs([{ label: 'Projects', params: { view: 'projects', id: null } }]);
     
-    document.getElementById('study-project-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        await fetch('/api/study/memorize/projects', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name: formData.get('name'), description: formData.get('description') })
-        });
-        closeDrawer('study-project-drawer');
-        e.target.reset();
-        if (!currentStudyProject) loadStudyProjects();
-    });
-
-    // Tạo Card Mới
-    if(btnCreateCard) btnCreateCard.addEventListener('click', () => openDrawer('flashcard-drawer'));
-    document.getElementById('btn-close-flashcard-drawer')?.addEventListener('click', () => closeDrawer('flashcard-drawer'));
-
-    document.getElementById('flashcard-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const projId = currentStudyProject ? currentStudyProject.id : null;
-        await fetch('/api/study/memorize/flashcards', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                project_id: projId, 
-                word: formData.get('word'), 
-                meaning: formData.get('meaning'),
-                label: formData.get('label') 
-            })
-        });
-        closeDrawer('flashcard-drawer');
-        e.target.reset();
-        loadFlashcards(projId);
-    });
-
-    // Nút quay lại danh sách Project
-    if(btnBackStudyProjects) btnBackStudyProjects.addEventListener('click', () => {
-        if(document.getElementById('memorize-subtabs')) document.getElementById('memorize-subtabs').style.display = 'flex';
-        if(btnBackStudyProjects) btnBackStudyProjects.style.display = 'none';
-        document.querySelector('.mem-subtab-btn[data-target="projects"]')?.click();
-    });
-
-    function openStudyProject(project) {
-        currentStudyProject = project;
-        selectedCardIds.clear();
-        currentLabelFilter = '';
-        if(document.getElementById('memorize-subtabs')) document.getElementById('memorize-subtabs').style.display = 'none';
-        if(document.getElementById('flashcard-label-filter')) document.getElementById('flashcard-label-filter').value = '';
-        if(document.getElementById('flashcard-controls')) document.getElementById('flashcard-controls').style.display = 'flex';
-        if(btnCreateStudyProject) btnCreateStudyProject.style.display = 'none';
-        if(btnCreateCard) btnCreateCard.style.display = 'inline-block';
-        if(btnStudyMode) btnStudyMode.style.display = 'inline-block';
-        if(btnBackStudyProjects) btnBackStudyProjects.style.display = 'inline-block';
-        if(titleMemorize) {
-            titleMemorize.style.display = 'block';
-            titleMemorize.innerText = `Project: ${project.name}`;
-        }
-        loadFlashcards(project.id);
-    }
-
-    let currentFlashcards = [];
-    let selectedCardIds = new Set();
-    let currentLabelFilter = '';
-
-    async function loadFlashcards(projectId) {
-        try {
-            const res = await fetch('/api/study/memorize/flashcards');
-            const json = await res.json();
-            
-            if (projectId === null) {
-                let uniqueCards = [];
-                let map = new Map();
-                (json.data || []).forEach(c => {
-                    if (!map.has(c.id)) { map.set(c.id, c); uniqueCards.push(c); }
-                });
-                currentFlashcards = uniqueCards;
-            } else {
-                currentFlashcards = (json.data || []).filter(c => c.project_id === projectId);
-            }
-            
-            renderFlashcards();
-        } catch(e) {}
-    }
-
-    function renderFlashcards() {
-        const container = document.getElementById('flashcard-list');
-        if(!container) return;
-        container.innerHTML = '';
-        
-        let visibleCards = currentFlashcards;
-        if (currentLabelFilter) {
-            visibleCards = currentFlashcards.filter(c => c.label && c.label.toLowerCase().includes(currentLabelFilter.toLowerCase()));
-        }
-        
-        if(currentFlashcards.length === 0) {
-            container.innerHTML = '<div class="empty-state" style="text-align: center; color: #777; padding: 20px;">No flashcards found. Click \"Tạo Card Mới\" to add one.</div>';
-            return;
-        }
-
-        if (visibleCards.length === 0) {
-            container.innerHTML = '<div class="empty-state" style="text-align: center; color: #777; padding: 20px;">No flashcards match this label.</div>';
-            return;
-        }
-
-        visibleCards.forEach(c => {
+    const list = document.getElementById('project-list');
+    list.innerHTML = 'Loading...';
+    
+    const res = await apiCall('/api/study/projects');
+    list.innerHTML = '';
+    if (res.data && res.data.length > 0) {
+        res.data.forEach(p => {
             const div = document.createElement('div');
             div.className = 'list-item';
             div.style.cursor = 'pointer';
-            
-            const isChecked = selectedCardIds.has(c.id);
-            
             div.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 15px; flex: 1;">
-                    <input type="checkbox" class="flashcard-checkbox" data-id="${c.id}" ${isChecked ? 'checked' : ''} style="transform: scale(1.3); cursor: pointer;">
-                    <div style="flex: 1;">
-                        <strong style="color: var(--primary); font-size: 15px;">${c.word}</strong>
-                        <div style="font-size: 13px; color: #555; margin-top: 4px;">${c.meaning}</div>
-                        ${c.label ? `<div style="font-size: 11px; margin-top: 6px; display: inline-block; padding: 2px 6px; background: #e3f2fd; color: #007bff; border-radius: 4px;">#${c.label}</div>` : ''}
-                    </div>
-                    <button class="btn danger btn-delete-card" style="padding: 4px 10px; font-size: 12px; background: transparent; border: 1px solid #dc3545;">Delete</button>
+                <div>
+                    <h4 style="margin: 0; color: var(--primary);">${p.name}</h4>
+                    <small style="color: #666;">${p.description || 'No description'}</small>
                 </div>
+                <button class="btn-del-proj btn-del-badge hover-only" title="Delete">✖</button>
             `;
-            
             div.addEventListener('click', (e) => {
-                if (e.target.tagName.toLowerCase() !== 'input' && !e.target.classList.contains('btn-delete-card')) {
-                    const cb = div.querySelector('.flashcard-checkbox');
-                    cb.checked = !cb.checked;
-                    const event = new Event('change', { bubbles: true });
-                    cb.dispatchEvent(event);
+                if(e.target.classList.contains('btn-del-proj')) return;
+                updateUrl({ view: 'project_details', id: p.id });
+            });
+            div.querySelector('.btn-del-proj').addEventListener('click', async () => {
+                if (confirm('Delete project?')) {
+                    await apiCall('/api/study/projects', 'DELETE', { id: p.id });
+                    renderProjectsView();
                 }
             });
-            
-            div.querySelector('.btn-delete-card').addEventListener('click', async (e) => {
+            list.appendChild(div);
+        });
+    } else {
+        list.innerHTML = '<p>No projects found. Create one!</p>';
+    }
+}
+
+async function renderProjectDetailsView(projectId) {
+    hideAllViews();
+    document.getElementById('view-project-details').style.display = 'flex';
+    
+    const subprojectList = document.getElementById('subproject-list');
+    const problemList = document.getElementById('problem-list');
+    const recordList = document.getElementById('project-record-list');
+    
+    subprojectList.innerHTML = 'Loading...';
+    problemList.innerHTML = 'Loading...';
+    recordList.innerHTML = 'Loading...';
+    
+    updateBreadcrumbs([
+        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
+        { label: 'Project Details', params: { view: 'project_details', id: projectId } }
+    ]);
+    
+    // Fetch Sub-projects
+    const subprojectsRes = await apiCall(`/api/study/projects?parent_project_id=${projectId}`);
+    subprojectList.innerHTML = '';
+    if (subprojectsRes.data && subprojectsRes.data.length > 0) {
+        subprojectsRes.data.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.style.cursor = 'pointer';
+            div.innerHTML = `
+                <div style="flex: 1;">
+                    <h4 style="margin: 0; color: var(--primary);">${p.name}</h4>
+                    <p style="margin: 5px 0 0 0; font-size: 13px; color: var(--text-light);">${p.description || ''}</p>
+                </div>
+                <button class="btn-del-proj btn-del-badge hover-only" title="Delete">✖</button>
+            `;
+            div.addEventListener('click', (e) => {
+                if(e.target.classList.contains('btn-del-proj')) return;
+                updateUrl({ view: 'project_details', id: p.id });
+            });
+            div.querySelector('.btn-del-proj').addEventListener('click', async (e) => {
                 e.stopPropagation();
-                if (confirm(`Are you sure you want to delete the flashcard \"${c.word}\"?`)) {
-                    await fetch('/api/study/memorize/flashcards', { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: c.id }) });
-                    loadFlashcards(currentStudyProject ? currentStudyProject.id : null);
+                if (confirm('Delete sub-project?')) {
+                    await apiCall('/api/study/projects', 'DELETE', { id: p.id });
+                    renderProjectDetailsView(projectId);
                 }
             });
-
-            div.querySelector('.flashcard-checkbox').addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    selectedCardIds.add(c.id);
-                } else {
-                    selectedCardIds.delete(c.id);
-                }
-                updateSelectAllState(visibleCards);
-            });
-
-            container.appendChild(div);
+            subprojectList.appendChild(div);
         });
-        updateSelectAllState(visibleCards);
+    } else {
+        subprojectList.innerHTML = '<p style="color: var(--text-light); font-size: 13px;">No sub-projects.</p>';
     }
-
-    document.getElementById('flashcard-label-filter')?.addEventListener('input', (e) => {
-        currentLabelFilter = e.target.value;
-        renderFlashcards();
-    });
-
-    document.getElementById('flashcard-select-all')?.addEventListener('change', (e) => {
-        let visibleCards = currentFlashcards;
-        if (currentLabelFilter) {
-            visibleCards = currentFlashcards.filter(c => c.label && c.label.toLowerCase().includes(currentLabelFilter.toLowerCase()));
-        }
-        if (e.target.checked) {
-            visibleCards.forEach(c => selectedCardIds.add(c.id));
-        } else {
-            visibleCards.forEach(c => selectedCardIds.delete(c.id));
-        }
-        renderFlashcards();
-    });
-
-    function updateSelectAllState(visibleCards) {
-        const selectAllCb = document.getElementById('flashcard-select-all');
-        if (!selectAllCb || visibleCards.length === 0) return;
-        const allSelected = visibleCards.every(c => selectedCardIds.has(c.id));
-        selectAllCb.checked = allSelected;
-    }
-
-    // --- CHẾ ĐỘ HỌC FLASHCARD ---
-    let studyCards = [];
-    let currentStudyIndex = 0;
-    let studyMode = 'skim'; // 'skim' or 'test'
-
-    const studyOverlay = document.getElementById('study-session-overlay');
-    const viewSetup = document.getElementById('study-setup-view');
-    const viewActive = document.getElementById('study-active-view');
-    const viewSummary = document.getElementById('study-summary-view');
-
-    btnStudyMode?.addEventListener('click', () => {
-        if (selectedCardIds.size === 0) {
-            alert("Please select at least 1 card to start.");
-            return;
-        }
-        studyCards = currentFlashcards.filter(c => selectedCardIds.has(c.id));
-        document.getElementById('study-selected-count').innerText = studyCards.length;
-        
-        viewSetup.style.display = 'block';
-        viewActive.style.display = 'none';
-        viewSummary.style.display = 'none';
-        studyOverlay.classList.remove('hidden');
-    });
-
-    document.getElementById('btn-close-study-session')?.addEventListener('click', () => {
-        studyOverlay.classList.add('hidden');
-    });
-
-    function startStudySession(mode) {
-        studyMode = mode;
-        currentStudyIndex = 0;
-        
-        studyCards.sort(() => Math.random() - 0.5); // Xáo trộn thẻ bài
-        
-        viewSetup.style.display = 'none';
-        viewActive.style.display = 'flex';
-        
-        if (studyMode === 'skim') {
-            document.getElementById('study-test-controls').style.display = 'none';
-        } else {
-            document.getElementById('study-test-controls').style.display = 'flex';
-        }
-        
-        renderStudyCard();
-    }
-
-    document.getElementById('btn-start-skim')?.addEventListener('click', () => startStudySession('skim'));
-    document.getElementById('btn-start-test')?.addEventListener('click', () => startStudySession('test'));
-
-    function renderStudyCard() {
-        if (currentStudyIndex >= studyCards.length) {
-            viewActive.style.display = 'none';
-            viewSummary.style.display = 'flex';
-            return;
-        }
-        
-        document.getElementById('study-progress').innerText = `Card ${currentStudyIndex + 1} / ${studyCards.length}`;
-        const card = studyCards[currentStudyIndex];
-        
-        const elWord = document.getElementById('study-word');
-        const elMeaning = document.getElementById('study-meaning');
-        const flipContainer = document.getElementById('study-card-container');
-        
-        elWord.innerText = card.word;
-        elMeaning.innerText = card.meaning;
-        
-        // Reset mặt thẻ về phía trước mỗi khi qua từ mới
-        flipContainer.classList.remove('flipped');
-        
-        if (studyMode === 'test') {
-            document.getElementById('study-test-input').value = '';
-            document.getElementById('study-test-feedback').style.display = 'none';
-            document.getElementById('study-test-input').disabled = false;
-            document.getElementById('btn-submit-answer').disabled = false;
-            document.getElementById('btn-submit-answer').style.display = 'block';
-            document.getElementById('btn-submit-answer').innerText = 'Submit';
-        }
-        
-        document.getElementById('btn-study-prev').disabled = (currentStudyIndex === 0);
-        document.getElementById('btn-study-next').innerText = (currentStudyIndex === studyCards.length - 1 && studyMode === 'skim') ? "Finish →" : "Next →";
-        if (studyMode === 'test') {
-             document.getElementById('btn-study-next').style.display = 'none';
-        } else {
-             document.getElementById('btn-study-next').style.display = 'block';
-        }
-    }
-
-    document.getElementById('study-card-container')?.addEventListener('click', () => {
-        if (studyMode === 'skim') {
-            document.getElementById('study-card-container').classList.toggle('flipped');
-        }
-    });
-
-    document.getElementById('btn-study-next')?.addEventListener('click', () => {
-        currentStudyIndex++;
-        renderStudyCard();
-    });
-
-    document.getElementById('btn-study-prev')?.addEventListener('click', () => {
-        if (currentStudyIndex > 0) {
-            currentStudyIndex--;
-            renderStudyCard();
-        }
-    });
-
-    document.getElementById('btn-submit-answer')?.addEventListener('click', async () => {
-        const answer = document.getElementById('study-test-input').value.trim();
-        if (!answer) {
-            alert("Please enter an answer!");
-            return;
-        }
-        
-        const btnSubmit = document.getElementById('btn-submit-answer');
-        btnSubmit.disabled = true;
-        btnSubmit.innerText = "Grading...";
-        
-        const card = studyCards[currentStudyIndex];
-        const provider = document.getElementById('ai-provider')?.value || 'gemini';
-        const evalMode = document.getElementById('ai-eval-mode')?.value || 'similarity';
-        const apiKey = document.getElementById('ai-api-key')?.value || '';
-        
-        let json;
-        try {
-            const res = await fetch('/api/study/memorize/check', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    ground_truth: card.meaning,
-                    user_answer: answer,
-                    eval_mode: evalMode,
-                    provider: provider,
-                    api_key: apiKey
-                })
-            });
-            json = await res.json();
-            if (!res.ok) json.status = "500";
-            
-            const sim = json.similarity || 0;
-            // Chuyển Hue từ 0 (Đỏ) sang 120 (Xanh lá) dựa trên mức độ Similarity
-            const hue = Math.max(0, Math.min(120, Math.round(sim * 120)));
-            
-            const feedback = document.getElementById('study-test-feedback');
-            feedback.style.display = 'block';
-            feedback.style.backgroundColor = `hsl(${hue}, 80%, 90%)`;
-            feedback.style.color = `hsl(${hue}, 80%, 25%)`;
-            
-            if (json.status && json.status.includes('500')) {
-                feedback.innerHTML = `⚠️ <strong>AI Error:</strong> ${json.message || 'Language processing error. Please check the backend logic.'}`;
-            } else {
-                feedback.innerHTML = `🎯 <strong>Match: ${Math.round((json.similarity || 0) * 100)}%</strong><br><span style="font-weight:normal; font-size:14px; margin-top:8px; display:block;">Reference: ${card.meaning}</span>`;
-            }
-            
-            document.getElementById('study-test-input').disabled = true;
-            document.getElementById('study-card-container').classList.add('flipped');
-            
-            const btnNext = document.getElementById('btn-study-next');
-            btnNext.style.display = 'block';
-            btnNext.innerText = (currentStudyIndex === studyCards.length - 1) ? "Finish →" : "Next →";
-            
-            btnSubmit.style.display = 'none';
-        } catch (e) {
-            alert("Connection error: " + e.message);
-            btnSubmit.disabled = false;
-            btnSubmit.innerText = "Submit";
-        }
-    });
-
-    document.getElementById('btn-study-finish')?.addEventListener('click', () => {
-        studyOverlay.classList.add('hidden');
-    });
-
-    async function loadStudyProjects() {
-        try {
-            const res = await fetch(`/api/study/memorize/projects?_t=${Date.now()}`);
-            const json = await res.json();
-            const container = document.getElementById('flashcard-list');
-            if(!container) return;
-            container.innerHTML = '';
-            if(json.data.length === 0) {
-                container.innerHTML = '<div style="text-align: center; color: #777; padding: 20px;">No projects yet. Create a new project to start using flashcards.</div>';
-            }
-            json.data.forEach(p => {
-                const div = document.createElement('div');
-                div.className = 'list-item';
-                div.style.cursor = 'pointer';
-                div.innerHTML = `
-                    <div style="flex: 1;"><strong>${p.name}</strong><div style="font-size: 12px; color: #666; margin-top: 4px;">${p.description || 'No description'}</div></div>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn danger btn-delete-project" style="padding: 6px 12px; font-size: 12px; background: transparent; border: 1px solid #dc3545;">Delete</button>
-                    </div>`;
-                div.addEventListener('click', () => openStudyProject(p));
-                div.querySelector('.btn-delete-project').addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if (confirm("Are you sure you want to delete this project and all flashcards inside it?")) {
-                        await fetch('/api/study/memorize/projects', { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: p.id }) });
-                        loadStudyProjects();
-                    }
-                });
-                container.appendChild(div);
-            });
-        } catch(e) {}
-    }
-
-    // --- PHẦN THINKING ROOM ---
-    // Tạo Project Problem
-    const btnCreateThinkingProject = document.getElementById('btn-create-thinking-project');
-    if(btnCreateThinkingProject) btnCreateThinkingProject.addEventListener('click', () => openDrawer('thinking-project-drawer'));
-    document.getElementById('btn-close-thinking-project')?.addEventListener('click', () => closeDrawer('thinking-project-drawer'));
-
-    document.getElementById('thinking-project-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        await fetch('/api/study/thinking/projects', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name: formData.get('name'), problem_statement: formData.get('problem_statement') })
-        });
-        closeDrawer('thinking-project-drawer');
-        e.target.reset();
-        loadThinkingProjects();
-    });
-
-    let currentThinkingProject = null;
-    let allThinkingProjects = [];
-    let currentProjectItems = []; // Lưu trữ dữ liệu cột để dùng cho nạp suy luận
-
-    // Tự động mở rộng textarea
-    const resizeTextarea = (el) => {
-        el.style.height = 'auto';
-        el.style.height = el.scrollHeight + 'px';
-    };
-    const problemTa = document.getElementById('thinking-problem-statement');
-    if (problemTa) {
-        problemTa.addEventListener('input', () => resizeTextarea(problemTa));
-    }
-
-    const btnPreviewProblem = document.getElementById('btn-preview-problem');
-    const previewProblem = document.getElementById('thinking-problem-preview');
-    if (btnPreviewProblem) {
-        btnPreviewProblem.addEventListener('click', () => {
-            if (problemTa.style.display === 'none') {
-                problemTa.style.display = 'block';
-                previewProblem.style.display = 'none';
-                btnPreviewProblem.innerText = 'Preview Markdown';
-            } else {
-                problemTa.style.display = 'none';
-                previewProblem.style.display = 'block';
-                previewProblem.innerHTML = typeof marked !== 'undefined' ? marked.parse(problemTa.value) : problemTa.value;
-                btnPreviewProblem.innerText = 'Edit Text';
-            }
-        });
-    }
-
-    const btnPreviewDesc = document.getElementById('btn-toggle-thinking-preview');
-    const taDesc = document.getElementById('thinking-desc-input');
-    const previewDesc = document.getElementById('thinking-desc-preview');
-    if (btnPreviewDesc) {
-        btnPreviewDesc.addEventListener('click', () => {
-            if (taDesc.style.display === 'none') {
-                taDesc.style.display = 'block';
-                previewDesc.style.display = 'none';
-                btnPreviewDesc.innerText = 'Preview Markdown';
-            } else {
-                taDesc.style.display = 'none';
-                previewDesc.style.display = 'block';
-                previewDesc.innerHTML = typeof marked !== 'undefined' ? marked.parse(taDesc.value) : taDesc.value;
-                btnPreviewDesc.innerText = 'Edit Text';
-            }
-        });
-    }
-
-    document.getElementById('thinking-project-search')?.addEventListener('input', (e) => {
-        renderThinkingProjects(e.target.value);
-    });
-
-    function renderThinkingProjects(filter = "") {
-        const list = document.getElementById('thinking-project-list');
-        if (!list) return;
-        list.innerHTML = "";
-        const filtered = allThinkingProjects.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()));
-        
-        if (filtered.length === 0) {
-            list.innerHTML = '<div class="empty-state" style="padding: 20px; text-align: center; color: #777;">No projects found.</div>';
-            return;
-        }
-
-        filtered.forEach(p => {
-            const item = document.createElement('div');
-            item.className = 'list-item';
-            item.style.cursor = 'pointer';
-            item.innerHTML = `
-                <div style="flex: 1;"><strong>${p.name}</strong></div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn danger btn-delete-project" style="padding: 4px 10px; font-size: 12px; background: transparent; border: 1px solid #dc3545;">Delete</button>
+    
+    // Fetch Problems
+    const problemsRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
+    problemList.innerHTML = '';
+    if (problemsRes.data && problemsRes.data.length > 0) {
+        problemsRes.data.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.style.cursor = 'pointer';
+            div.innerHTML = `
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="margin: 0; color: var(--primary);">${p.title}</h4>
+                    <button class="btn-del-prob btn-del-badge hover-only" title="Delete">✖</button>
                 </div>
             `;
-            
-            item.addEventListener('click', () => openThinkingWorkspace(p));
-            item.querySelector('.btn-delete-project').addEventListener('click', async (e) => { 
-                e.stopPropagation(); 
-                if (confirm("Are you sure you want to delete this project and all data inside it?")) {
-                    await fetch('/api/study/thinking/projects', { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: p.id }) });
-                    loadThinkingProjects();
+            div.addEventListener('click', (e) => {
+                if(e.target.classList.contains('btn-del-prob')) return;
+                updateUrl({ view: 'problem', id: p.id, projectId: projectId });
+            });
+            div.querySelector('.btn-del-prob').addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm('Delete problem?')) {
+                    await apiCall('/api/study/problems', 'DELETE', { id: p.id });
+                    renderProjectDetailsView(projectId);
                 }
             });
-            list.appendChild(item);
+            problemList.appendChild(div);
         });
-    }
-
-    async function loadThinkingProjects() {
-        try {
-            const res = await fetch(`/api/study/thinking/projects?_t=${Date.now()}`);
-            const json = await res.json();
-            allThinkingProjects = json.data || [];
-            // Giữ lại input search đang gõ
-            const searchInput = document.getElementById('thinking-project-search');
-            const filterVal = searchInput ? searchInput.value : "";
-            renderThinkingProjects(filterVal);
-        } catch(e) {}
-    }
-
-    document.getElementById('btn-save-problem')?.addEventListener('click', async () => {
-        if (!currentThinkingProject) return;
-        const stmt = document.getElementById('thinking-problem-statement').value;
-        await fetch('/api/study/thinking/projects', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: currentThinkingProject, problem_statement: stmt })
-        });
-        loadThinkingProjects();
-        alert('✅ Saved!');
-    });
-
-    function openThinkingWorkspace(project) {
-        currentThinkingProject = project.id;
-        document.getElementById('thinking-project-view').style.display = 'none';
-        document.getElementById('thinking-workspace').style.display = 'block';
-        
-        const ta = document.getElementById('thinking-problem-statement');
-        ta.value = project.problem_statement || '';
-        // Đợi UI render một chút rồi trigger resize
-        setTimeout(() => resizeTextarea(ta), 50);
-        
-        const btnPreviewProblem = document.getElementById('btn-preview-problem');
-        const previewProblem = document.getElementById('thinking-problem-preview');
-        if (ta && previewProblem && btnPreviewProblem) {
-            ta.style.display = 'block';
-            previewProblem.style.display = 'none';
-            btnPreviewProblem.innerText = 'Preview Markdown';
-        }
-        
-        loadThinkingItems(project.id);
-    }
-
-    document.getElementById('btn-back-thinking-projects')?.addEventListener('click', () => {
-        currentThinkingProject = null;
-        document.getElementById('thinking-workspace').style.display = 'none';
-        document.getElementById('thinking-project-view').style.display = 'block';
-        loadThinkingProjects();
-    });
-
-    // Tải items cho 3 cột của Thinking Workspace
-    window.loadThinkingItems = async function(projectId) {
-        try {
-            const res = await fetch(`/api/study/thinking/items?project_id=${projectId}&_t=${Date.now()}`);
-            const json = await res.json();
-            if (json.status.includes("200")) {
-                currentProjectItems = [...json.data.knowledge, ...json.data.inferences, ...json.data.questions];
-                
-                // Đánh số ID hiển thị dựa trên thứ tự tạo (ID DB gốc)
-                currentProjectItems.sort((a, b) => a.id - b.id);
-                const idToDisplay = {};
-                currentProjectItems.forEach((item, index) => {
-                    item.display_id = index + 1;
-                    idToDisplay[item.id] = item.display_id;
-                });
-                
-                const renderCol = (containerId, items, type) => {
-                    const container = document.getElementById(containerId);
-                    if (!container) return;
-                    container.innerHTML = '';
-                    items.forEach(item => {
-                        let descHtml = '<i style="color:#aaa">No description</i>';
-                        if (item.description) {
-                            let words = item.description.trim().split(/\s+/);
-                            let rawDesc = words.length > 500 ? words.slice(0, 500).join(' ') + '...' : item.description;
-                            descHtml = typeof marked !== 'undefined' ? marked.parse(rawDesc) : rawDesc;
-                        }
-                        
-                        let nameHtml = item.name;
-                        if (typeof marked !== 'undefined' && marked.parseInline) {
-                            nameHtml = marked.parseInline(item.name);
-                        }
-                        
-                        const mappedSourceIds = item.source_ids ? item.source_ids.split(',').map(id => idToDisplay[id.trim()]).filter(v => v).join(', ') : '';
-                        const sourceBadge = mappedSourceIds ? `<div style="font-size:10px; color:#888; margin-top:4px;">[Từ nguồn: #${mappedSourceIds}]</div>` : '';
-                        const div = document.createElement('div');
-                        div.style.cssText = 'padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: 0.2s;';
-                        div.innerHTML = `
-                            <strong style="font-size: 13px; color: var(--primary); word-break: break-word; margin: 0; display: block;" class="content-md">${nameHtml} <span style="color:#999; font-size:11px; display: inline-block;">(#${item.display_id})</span></strong>
-                            <div class="content-md" style="font-size: 12px; color: #555; word-break: break-word; margin: 0;">${descHtml}</div>
-                            ${sourceBadge}
-                        `;
-                        // Thêm hiệu ứng hover CSS bằng JS
-                        div.onmouseover = () => div.style.borderColor = 'var(--primary)';
-                        div.onmouseout = () => div.style.borderColor = 'var(--border)';
-                        div.addEventListener('click', () => editThinkingItem(item, type));
-                        container.appendChild(div);
-                    });
-                };
-                renderCol('col-knowledge', json.data.knowledge, 'knowledge');
-                renderCol('col-inference', json.data.inferences, 'inference');
-                renderCol('col-question', json.data.questions, 'question');
-            }
-        } catch(e) {
-            console.error("Failed to load items:", e);
-        }
-    };
-
-    window.editThinkingItem = function(item, type) {
-        document.getElementById('thinking-item-id').value = item.id;
-        document.getElementById('thinking-item-type').value = type;
-        
-        let title = "Sửa mục";
-        if (type === 'knowledge') title = 'Sửa Kiến Thức';
-        if (type === 'question') title = 'Sửa Câu Hỏi/Giả Thuyết';
-        if (type === 'inference') title = 'Sửa Suy Luận';
-        
-        document.getElementById('thinking-item-title').innerText = title;
-        document.querySelector('#thinking-item-form [name="name"]').value = item.name;
-        document.querySelector('#thinking-item-form [name="description"]').value = item.description || '';
-        
-        const taDesc = document.getElementById('thinking-desc-input');
-        const previewDesc = document.getElementById('thinking-desc-preview');
-        const btnPreviewDesc = document.getElementById('btn-toggle-thinking-preview');
-        if (taDesc && previewDesc && btnPreviewDesc) {
-            taDesc.style.display = 'block';
-            previewDesc.style.display = 'none';
-            btnPreviewDesc.innerText = 'Preview Markdown';
-        }
-        
-        const btnDelete = document.getElementById('btn-delete-thinking-item');
-        if (btnDelete) {
-            btnDelete.classList.remove('hidden');
-            btnDelete.onclick = () => window.deleteThinkingItem(item.id, type);
-        }
-        
-        openDrawer('thinking-item-drawer');
-    };
-
-    // Thêm các thẻ Kiến thức / Câu hỏi vào cột
-    const setupAddItemBtn = (btnId, itemType, titleText) => {
-        document.getElementById(btnId)?.addEventListener('click', () => {
-            document.getElementById('thinking-item-id').value = '';
-            document.getElementById('thinking-item-type').value = itemType;
-            document.getElementById('thinking-item-title').innerText = titleText;
-            document.getElementById('thinking-item-form').reset();
-            
-            const taDesc = document.getElementById('thinking-desc-input');
-            const previewDesc = document.getElementById('thinking-desc-preview');
-            const btnPreviewDesc = document.getElementById('btn-toggle-thinking-preview');
-            if (taDesc && previewDesc && btnPreviewDesc) {
-                taDesc.style.display = 'block';
-                previewDesc.style.display = 'none';
-                btnPreviewDesc.innerText = 'Preview Markdown';
-            }
-            
-            document.getElementById('btn-delete-thinking-item')?.classList.add('hidden');
-            openDrawer('thinking-item-drawer');
-        });
-    };
-    setupAddItemBtn('btn-add-knowledge', 'knowledge', 'Add Knowledge');
-    setupAddItemBtn('btn-add-question', 'question', 'Add Question / Hypothesis');
-    setupAddItemBtn('btn-add-inference-manual', 'inference', 'Add Inference');
-    
-    window.deleteThinkingItem = async (id, type) => {
-        if (confirm(`Are you sure you want to delete this item?`)) {
-            await fetch('/api/study/thinking/items', { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id, type }) });
-            closeDrawer('thinking-item-drawer');
-            loadThinkingItems(currentThinkingProject);
-        }
-    };
-    document.getElementById('btn-close-thinking-drawer')?.addEventListener('click', () => closeDrawer('thinking-item-drawer'));
-
-    // --- LOGIC NẠP SUY LUẬN (5 CỘT MODAL) ---
-    const inferenceModal = document.getElementById('inference-modal-overlay');
-    const colContainer = document.getElementById('inference-columns-container');
-    const btnAddCol = document.getElementById('btn-add-inference-column');
-    let inferenceColsCount = 0;
-
-    document.getElementById('btn-add-inference')?.addEventListener('click', () => {
-        inferenceModal.classList.remove('hidden');
-        colContainer.innerHTML = '';
-        colContainer.appendChild(btnAddCol);
-        inferenceColsCount = 0;
-        document.getElementById('inference-result-name').value = '';
-        document.getElementById('inference-result-desc').value = '';
-    });
-
-    document.getElementById('btn-close-inference-modal')?.addEventListener('click', () => {
-        inferenceModal.classList.add('hidden');
-    });
-
-    btnAddCol?.addEventListener('click', () => {
-        if (inferenceColsCount >= 5) {
-            alert("You can add up to 5 sources.");
-            return;
-        }
-        inferenceColsCount++;
-        const colDiv = document.createElement('div');
-        colDiv.style.cssText = 'min-width: 250px; border: 1px solid var(--border); border-radius: 8px; padding: 15px; background: #fff; display: flex; flex-direction: column; gap: 10px;';
-        
-        let optionsHtml = '<option value="">-- Chọn dữ liệu nguồn --</option>';
-        currentProjectItems.forEach(item => {
-            optionsHtml += `<option value="${item.id}">#${item.display_id} - ${item.name}</option>`;
-        });
-
-        colDiv.innerHTML = `
-            <h5 style="margin:0; display:flex; justify-content:space-between;">Nguồn ${inferenceColsCount} <button type="button" class="btn-remove-col" style="background:none; border:none; color:#dc3545; cursor:pointer; font-weight:bold;">✕</button></h5>
-            <select class="inference-source-select" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); width: 100%;">
-                ${optionsHtml}
-            </select>
-        `;
-        
-        colDiv.querySelector('.btn-remove-col').addEventListener('click', () => {
-            colDiv.remove();
-            inferenceColsCount--;
-        });
-        
-        colContainer.insertBefore(colDiv, btnAddCol);
-    });
-
-    document.getElementById('btn-save-inference')?.addEventListener('click', async () => {
-        if (!currentThinkingProject) return;
-        const name = document.getElementById('inference-result-name').value;
-        const desc = document.getElementById('inference-result-desc').value;
-        if (!name) { alert("Please enter a name for the inference result!"); return; }
-
-        const selects = document.querySelectorAll('.inference-source-select');
-        const sourceIds = Array.from(selects).map(s => s.value).filter(v => v).join(',');
-
-        await fetch('/api/study/thinking/items', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ project_id: currentThinkingProject, type: 'inference', name: name, description: desc, source_ids: sourceIds }) });
-        inferenceModal.classList.add('hidden');
-        loadThinkingItems(currentThinkingProject);
-    });
-
-    document.getElementById('thinking-item-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!currentThinkingProject) { alert("Please select a project first!"); return; }
-        const formData = new FormData(e.target);
-        
-        const payload = { 
-            project_id: currentThinkingProject, 
-            type: formData.get('type'), 
-            name: formData.get('name'), 
-            description: formData.get('description') 
-        };
-        const itemId = formData.get('id');
-        if (itemId) payload.id = itemId;
-
-        await fetch('/api/study/thinking/items', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        closeDrawer('thinking-item-drawer');
-        e.target.reset();
-        loadThinkingItems(currentThinkingProject);
-    });
-
-    // Khôi phục trạng thái tab study hoặc tải mặc định
-    const savedStudyTab = localStorage.getItem('locked_active_study_tab');
-    if (savedStudyTab) {
-        const targetBtn = Array.from(tabBtns).find(b => b.getAttribute('data-tab') === savedStudyTab);
-        if (targetBtn && !targetBtn.classList.contains('primary')) {
-            targetBtn.click();
-        } else if (targetBtn && targetBtn.classList.contains('primary')) {
-            savedStudyTab === 'thinking' ? loadThinkingProjects() : (document.querySelector('.mem-subtab-btn[data-target="projects"]')?.click() || loadStudyProjects());
-        }
     } else {
-        document.querySelector('.mem-subtab-btn[data-target="projects"]')?.click() || loadStudyProjects();
+        problemList.innerHTML = '<p style="color: var(--text-light); font-size: 13px;">No problems found. Create one!</p>';
     }
+
+    // Fetch Records
+    const recordsRes = await apiCall(`/api/study/records?project_id=${projectId}`);
+    recordList.innerHTML = '';
+    if (recordsRes.data && recordsRes.data.length > 0) {
+        recordsRes.data.forEach(r => {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.style.cursor = 'pointer';
+            div.innerHTML = `
+                <div style="flex: 1;">
+                    <h4 style="margin: 0; color: var(--primary);">${r.title}</h4>
+                </div>
+            `;
+            div.addEventListener('click', () => {
+                updateUrl({ view: 'record', id: r.id, projectId: projectId });
+            });
+            recordList.appendChild(div);
+        });
+    } else {
+        recordList.innerHTML = '<p style="color: var(--text-light); font-size: 13px;">No standalone records.</p>';
+    }
+}
+
+async function renderProblemView(problemId, projectId) {
+    hideAllViews();
+    document.getElementById('view-problem').style.display = 'flex';
+    
+    const kanban = document.getElementById('problem-kanban');
+    kanban.innerHTML = 'Loading columns...';
+    
+    // Fetch Problem details to show description
+    const probRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
+    let problemTitle = "Problem Kanban";
+    if (probRes.data) {
+        const p = probRes.data.find(x => String(x.id) === String(problemId));
+        if (p) {
+            problemTitle = p.title;
+            const descEl = document.getElementById('problem-description');
+            if (p.description) {
+                descEl.textContent = p.description;
+                document.getElementById('problem-desc-container').style.display = 'block';
+            } else {
+                document.getElementById('problem-desc-container').style.display = 'none';
+            }
+            document.getElementById('problem-title').textContent = p.title;
+        }
+    }
+
+    updateBreadcrumbs([
+        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
+        { label: 'Project', params: { view: 'project_details', id: projectId } },
+        { label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } }
+    ]);
+
+    
+    const res = await apiCall(`/api/study/columns?problem_id=${problemId}`);
+    kanban.innerHTML = '';
+    
+    if (res.data) {
+        for (const col of res.data) {
+            const colDiv = document.createElement('div');
+            colDiv.style.background = 'var(--surface)';
+            colDiv.style.border = '1px solid var(--border)';
+            colDiv.style.borderRadius = '8px';
+            colDiv.style.padding = '10px';
+            colDiv.style.display = 'flex';
+            colDiv.style.flexDirection = 'column';
+            
+            colDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <input type="text" class="col-name-input" value="${col.name}" style="font-size: 16px; font-weight: bold; border: none; background: transparent; outline: none; border-bottom: 1px solid transparent; flex: 1; padding: 2px;">
+                    <div>
+                        <button class="btn outline btn-add-card" style="font-size: 11px; padding: 2px 6px; margin-left: 10px;">+ Card</button>
+                    </div>
+                </div>
+                <div class="cards-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;"></div>
+            `;
+            
+            kanban.appendChild(colDiv);
+            
+            // Fetch cards
+            const cardsRes = await apiCall(`/api/study/problem_cards?column_id=${col.id}`);
+            const cardsContainer = colDiv.querySelector('.cards-container');
+            if (cardsRes.data) {
+                cardsRes.data.forEach(card => {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.style.background = '#fff';
+                    cardDiv.style.border = '1px solid var(--border)';
+                    cardDiv.style.borderRadius = '4px';
+                    cardDiv.style.padding = '10px';
+                    cardDiv.style.cursor = 'pointer';
+                    cardDiv.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    cardDiv.innerHTML = `
+                        <div style="font-size: 13px; font-weight: bold;">${card.record_title}</div>
+                    `;
+                    cardDiv.addEventListener('click', () => {
+                        updateUrl({ view: 'record', id: card.record_id, projectId: projectId });
+                    });
+                    cardsContainer.appendChild(cardDiv);
+                });
+            }
+            
+            colDiv.querySelector('.col-name-input').addEventListener('blur', async (e) => {
+                const newName = e.target.value.trim();
+                if (newName && newName !== col.name) {
+                    await apiCall('/api/study/columns', 'PUT', { id: col.id, name: newName });
+                    col.name = newName;
+                }
+            });
+            colDiv.querySelector('.col-name-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.target.blur();
+                }
+            });
+
+            colDiv.querySelector('.btn-add-card').addEventListener('click', async () => {
+                const input = await promptRecordModal("New Card");
+                if (input) {
+                    const recRes = await apiCall('/api/study/records', 'POST', { title: input.title, body: input.desc, project_id: projectId });
+                    await apiCall('/api/study/problem_cards', 'POST', {
+                        column_id: col.id,
+                        record_id: recRes.data.id,
+                        order_index: cardsRes.data ? cardsRes.data.length : 0
+                    });
+                    renderProblemView(problemId, projectId);
+                }
+            });
+        }
+    }
+}
+
+// Mention Logic State
+let mentionMode = false;
+let mentionQuery = '';
+let mentionStartIndex = -1;
+let mentionItems = [];
+let mentionSelectedIndex = 0;
+
+function closeMentionDropdown() {
+    mentionMode = false;
+    const dropdown = document.getElementById('mention-dropdown');
+    if (dropdown) {
+        dropdown.style.display = 'none';
+        dropdown.innerHTML = '';
+    }
+}
+
+async function renderMentionDropdown(editor) {
+    const dropdown = document.getElementById('mention-dropdown');
+    if (!dropdown) return;
+
+    if (!mentionMode) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    // Fetch items
+    const res = await apiCall(`/api/study/search?q=${encodeURIComponent(mentionQuery)}`);
+    mentionItems = res.data || [];
+
+    if (mentionItems.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    // Clamp selected index
+    if (mentionSelectedIndex >= mentionItems.length) mentionSelectedIndex = mentionItems.length - 1;
+    if (mentionSelectedIndex < 0) mentionSelectedIndex = 0;
+
+    dropdown.innerHTML = '';
+    mentionItems.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.style.padding = '8px 12px';
+        div.style.cursor = 'pointer';
+        div.style.borderBottom = '1px solid var(--border)';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '8px';
+        
+        if (index === mentionSelectedIndex) {
+            div.style.background = 'var(--primary-light, #e0f7fa)';
+        }
+
+        let icon = '';
+        if (item.type === 'record') icon = '📚';
+        else if (item.type === 'problem') icon = '📋';
+        else icon = '📁';
+
+        div.innerHTML = `<span>${icon}</span><span style="font-weight: bold; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</span><span style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">${item.type}</span>`;
+        
+        div.addEventListener('mouseenter', () => {
+            mentionSelectedIndex = index;
+            renderMentionDropdown(editor); // Re-render to update highlight
+        });
+        
+        div.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Prevent blur
+            insertMention(item, editor);
+        });
+
+        dropdown.appendChild(div);
+    });
+
+    dropdown.style.display = 'flex';
+    // Position it at the top-left of the editor area for simplicity, 
+    // or ideally a fixed spot since it's a relative container now.
+    dropdown.style.top = '10px';
+    dropdown.style.left = '10px';
+}
+
+function insertMention(item, editor) {
+    const text = editor.value;
+    const before = text.substring(0, mentionStartIndex);
+    const after = text.substring(editor.selectionStart);
+    
+    // Markdown link format
+    const link = `[${item.name}](/study?view=${item.type}&id=${item.id}&projectId=${item.project_id})`;
+    
+    editor.value = before + link + ' ' + after;
+    editor.selectionStart = editor.selectionEnd = mentionStartIndex + link.length + 1;
+    
+    closeMentionDropdown();
+    // Trigger input event to update preview and save
+    editor.dispatchEvent(new Event('input'));
+    editor.focus();
+}
+
+function handleEditorKeydown(e) {
+    if (mentionMode) {
+        if (e.key === 'Escape') {
+            closeMentionDropdown();
+            e.preventDefault();
+        } else if (e.key === 'ArrowDown') {
+            mentionSelectedIndex++;
+            renderMentionDropdown(e.target);
+            e.preventDefault();
+        } else if (e.key === 'ArrowUp') {
+            mentionSelectedIndex--;
+            renderMentionDropdown(e.target);
+            e.preventDefault();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (mentionItems.length > 0) {
+                insertMention(mentionItems[mentionSelectedIndex], e.target);
+            } else {
+                closeMentionDropdown();
+            }
+        }
+    }
+}
+
+// Global typing timeout
+let recordSaveTimeout = null;
+
+async function renderRecordView(recordId, projectId) {
+    hideAllViews();
+    document.getElementById('view-record').style.display = 'flex';
+    
+    updateBreadcrumbs([
+        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
+        { label: 'Record Editor', params: { view: 'record', id: recordId, projectId: projectId } }
+    ]);
+    
+    const titleInput = document.getElementById('record-title');
+    const editor = document.getElementById('record-editor');
+    const preview = document.getElementById('record-preview');
+    
+    titleInput.value = 'Loading...';
+    editor.value = '';
+    
+    // Set default mode to View
+    isEditMode = false;
+    editor.style.display = 'none';
+    preview.style.display = 'block';
+    
+    const res = await apiCall(`/api/study/records/single?id=${recordId}`);
+    if (res.data) {
+        titleInput.value = res.data.title;
+        editor.value = res.data.body || '';
+        updatePreview(editor.value, preview);
+    }
+    
+    // Auto save on type
+    const handleInput = () => {
+        if (recordSaveTimeout) clearTimeout(recordSaveTimeout);
+        updatePreview(editor.value, preview);
+        recordSaveTimeout = setTimeout(async () => {
+            await apiCall('/api/study/records', 'PUT', {
+                id: recordId,
+                title: titleInput.value,
+                body: editor.value
+            });
+        }, 1000); // 1 second debounce
+        
+        // Mention logic check
+        const text = editor.value;
+        const cursor = editor.selectionStart;
+        const beforeCursor = text.substring(0, cursor);
+        
+        // Match "@..." where ... is everything after the last @ on the current line
+        const match = beforeCursor.match(/(?:^|\s)@([^@\n]*)$/);
+        if (match) {
+            mentionMode = true;
+            mentionStartIndex = cursor - match[1].length - 1; // position of @
+            mentionQuery = match[1];
+            renderMentionDropdown(editor);
+        } else {
+            closeMentionDropdown();
+        }
+    };
+    
+    titleInput.oninput = handleInput;
+    editor.oninput = handleInput;
+    editor.onkeydown = handleEditorKeydown;
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('mousedown', (e) => {
+        if (mentionMode && e.target !== editor && !e.target.closest('#mention-dropdown')) {
+            closeMentionDropdown();
+        }
+    }, { once: true });
+}
+
+// Global setup for marked in study module
+function configureStudyMarked() {
+    if (!window.marked || window.studyMarkedConfigured) return;
+    
+    // Ensure core marked config is applied first
+    if (typeof window.initMarked === 'function') window.initMarked();
+
+    // Custom renderer for study links
+    const renderer = {
+        link(href, title, text) {
+            if (href && href.includes('/study?view=record&id=')) {
+                return `<a href="${href}" class="study-record-link" style="background: var(--primary-light, #e0f7fa); color: var(--primary); padding: 2px 6px; border-radius: 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; border: 1px solid var(--primary);"><span style="margin-right:4px;">📚</span>${text}</a>`;
+            }
+            if (href && href.includes('/study?view=problem&id=')) {
+                return `<a href="${href}" class="study-problem-link" style="background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 12px; text-decoration: none; font-size: 0.9em; font-weight: bold; border: 1px solid #ffb74d;"><span style="margin-right:4px;">📋</span>${text}</a>`;
+            }
+            return false; // Fallback to default
+        }
+    };
+    
+    marked.use({ renderer });
+    window.studyMarkedConfigured = true;
+}
+
+function updatePreview(markdownText, previewEl) {
+    if (!window.marked) {
+        previewEl.innerHTML = markdownText;
+        return;
+    }
+    
+    configureStudyMarked();
+    previewEl.innerHTML = marked.parse(markdownText);
+}
+
+// ==========================================
+// Initialization & Events
+// ==========================================
+
+function handleRoute() {
+    const params = getQueryParams();
+    if (params.view === 'projects') {
+        renderProjectsView();
+    } else if (params.view === 'project_details') {
+        renderProjectDetailsView(params.id);
+    } else if (params.view === 'problem') {
+        renderProblemView(params.id, params.projectId);
+    } else if (params.view === 'record') {
+        renderRecordView(params.id, params.projectId);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Project events
+    document.getElementById('btn-create-project').addEventListener('click', async () => {
+        const input = await promptStudyInput("New Project", "Project Name:", true);
+        if (input) {
+            await apiCall('/api/study/projects', 'POST', { name: input.title, description: input.desc });
+            renderProjectsView();
+        }
+    });
+    document.getElementById('btn-create-subproject').addEventListener('click', async () => {
+        const params = getQueryParams();
+        if (params.id) {
+            const input = await promptStudyInput("New Sub-project", "Sub-project Name:", true);
+            if (input) {
+                await apiCall('/api/study/projects', 'POST', { name: input.title, description: input.desc, parent_project_id: params.id });
+                renderProjectDetailsView(params.id);
+            }
+        }
+    });
+
+    document.getElementById('btn-create-project-record').addEventListener('click', async () => {
+        const params = getQueryParams();
+        if (params.id) {
+            const input = await promptRecordModal("New Record");
+            if (input) {
+                await apiCall('/api/study/records', 'POST', { title: input.title, body: input.desc, project_id: params.id });
+                renderProjectDetailsView(params.id);
+            }
+        }
+    });
+    
+    document.getElementById('btn-create-problem').addEventListener('click', async () => {
+        const params = getQueryParams();
+        if (params.id) {
+            const input = await promptStudyInput("New Problem", "Problem Name:", true);
+            if (input) {
+                await apiCall('/api/study/problems', 'POST', { project_id: params.id, title: input.title, description: input.desc });
+                renderProjectDetailsView(params.id);
+            }
+        }
+    });
+
+    document.getElementById('btn-create-column').addEventListener('click', async () => {
+        const params = getQueryParams();
+        if (params.id) {
+            const input = await promptStudyInput("New Column", "Column Name:", false);
+            if (input) {
+                await apiCall('/api/study/columns', 'POST', { problem_id: params.id, name: input.title });
+                renderProblemView(params.id, params.projectId);
+            }
+        }
+    });
+
+    // Record events
+    window.isEditMode = false;
+    document.getElementById('btn-toggle-preview').addEventListener('click', () => {
+        window.isEditMode = !window.isEditMode;
+        const editor = document.getElementById('record-editor');
+        const preview = document.getElementById('record-preview');
+        if (window.isEditMode) {
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+            updatePreview(editor.value, preview);
+        } else {
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+        }
+    });
+    
+    document.getElementById('record-preview').addEventListener('dblclick', () => {
+        if (!window.isEditMode) {
+            window.isEditMode = true;
+            document.getElementById('record-editor').style.display = 'block';
+            document.getElementById('record-preview').style.display = 'block';
+        }
+    });
+    
+    document.getElementById('btn-save-record').addEventListener('click', async () => {
+        const params = getQueryParams();
+        const title = document.getElementById('record-title').value;
+        const body = document.getElementById('record-editor').value;
+        if (params.id) {
+            await apiCall('/api/study/records', 'PUT', { id: params.id, title, body });
+            alert("Saved!");
+        }
+    });
+
+    window.addEventListener('popstate', handleRoute);
+    
+    // Initial route
+    handleRoute();
 });
