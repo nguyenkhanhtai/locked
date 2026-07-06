@@ -6,7 +6,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from schema import (
     TempBlockItem, PermBlockItem, BlockItemsResponse, TopSiteItem, TaskEvent,
-    StudyProject, FlashcardItem, ThinkingProject, ThinkingItem, ThinkingItemsResponse,
+    StudyProject, StudyProblem, StudyColumn, StudyRecord, StudyProblemCard,
     ChatSession, ChatMessage
 )
 
@@ -50,11 +50,6 @@ class BlockedDatabase:
             raise
         finally:
             conn.close()
-
-    def _hash_url(self, url: str) -> int:
-        """Helper to create a fast 32-bit integer hash for a URL/Domain."""
-        import zlib
-        return zlib.crc32(url.lower().strip().encode('utf-8')) & 0xffffffff
 
     def init_db(self):
         try:
@@ -110,36 +105,81 @@ class BlockedDatabase:
         except Exception as e:
             db_logger.error(f"Failed to initialize BlockedDatabase: {e}")
 
-    def add_temp_site(self, url: str, open_at: int):
+    def _get_domain(self, url: str) -> str:
         """
-        Adds a website to the temporary block list.
+        Extracts and normalizes the Root Domain from a full URL.
+        (e.g., 'm.facebook.com' -> 'facebook.com')
         """
         try:
+            if not url: return ""
+            url = url.lower().strip()
+            if not url.startswith(('http://', 'https://')):
+                url = 'http://' + url
+            from urllib.parse import urlparse
+            netloc = urlparse(url).netloc
+            if netloc.startswith('www.'):
+                netloc = netloc[4:]
+            
+            # Root Domain extraction logic
+            parts = netloc.split('.')
+            if len(parts) > 2:
+                # Handle common multi-level TLDs (.com.vn, .co.uk, etc.)
+                if parts[-2] in ['com', 'co', 'edu', 'gov', 'net', 'org', 'ac'] and len(parts[-1]) <= 3:
+                    return ".".join(parts[-3:])
+                else:
+                    return ".".join(parts[-2:])
+            return netloc
+        except Exception:
+            return url.lower()
+
+    def _hash_url(self, url: str) -> int:
+        """Helper to create a fast 32-bit integer hash for a normalized Domain."""
+        import zlib
+        return zlib.crc32(url.encode('utf-8')) & 0xffffffff
+
+    def add_temp_site(self, url: str, open_at: int):
+        """Adds a website to the temporary block list with normalized hash."""
+        try:
+            domain = self._get_domain(url)
+            h = self._hash_url(domain)
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM temp_blocks WHERE url = ?", (url,))
-                cursor.execute("INSERT INTO temp_blocks (url, open_at) VALUES (?, ?)", (url, open_at))
+                cursor.execute("INSERT INTO temp_blocks (url, url_hash, open_at) VALUES (?, ?, ?)", (url, h, open_at))
                 conn.commit()
-            db_logger.info(f"Added temporary block: '{url}' (until {open_at})")
+            db_logger.info(f"Added temporary block: '{url}' (domain: {domain}, hash: {h})")
         except Exception as e:
             db_logger.error(f"Error adding temp site {url}: {e}")
         
     def add_perm_site(self, url: str, unlock_at: int = None):
-        """
-        Adds a website to the permanent/long-term block list.
-        """
+        """Adds a website to the permanent block list with normalized hash."""
         try:
+            domain = self._get_domain(url)
+            h = self._hash_url(domain)
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM perm_blocks WHERE url = ?", (url,))
                 now = int(time.time())
                 if unlock_at is None:
-                    unlock_at = now + 86400  # Default 1 day
-                cursor.execute("INSERT INTO perm_blocks (url, created_at, unlock_at) VALUES (?, ?, ?)", (url, now, unlock_at))
+                    unlock_at = now + 86400
+                cursor.execute("INSERT INTO perm_blocks (url, url_hash, created_at, unlock_at) VALUES (?, ?, ?, ?)", (url, h, now, unlock_at))
                 conn.commit()
-            db_logger.info(f"Added permanent block: '{url}' (unlock at {unlock_at})")
+            db_logger.info(f"Added permanent block: '{url}' (domain: {domain}, hash: {h})")
         except Exception as e:
             db_logger.error(f"Error adding perm site {url}: {e}")
+
+    def add_focus_url(self, url: str):
+        """Adds a website to the focus list with normalized hash."""
+        try:
+            domain = self._get_domain(url)
+            h = self._hash_url(domain)
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR IGNORE INTO focus_list (url, url_hash) VALUES (?, ?)", (url, h))
+                conn.commit()
+            db_logger.info(f"Added focus url: '{url}' (domain: {domain}, hash: {h})")
+        except Exception as e:
+            db_logger.error(f"Error adding focus url {url}: {e}")
         
     def delete_temp_sites(self, keyword: str):
         try:
@@ -267,14 +307,24 @@ class BlockedDatabase:
 
     def _get_domain(self, url: str) -> str:
         try:
+            if not url: return ""
+            url = url.lower().strip()
             if not url.startswith(('http://', 'https://')):
                 url = 'http://' + url
             from urllib.parse import urlparse
-            parsed = urlparse(url)
-            domain = parsed.netloc
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            return domain.lower()
+            netloc = urlparse(url).netloc
+            if netloc.startswith('www.'):
+                netloc = netloc[4:]
+            
+            # Tối ưu: Trích xuất Root Domain (ví dụ: music.youtube.com -> youtube.com)
+            parts = netloc.split('.')
+            if len(parts) > 2:
+                # Xử lý các TLD đa cấp phổ biến
+                if parts[-2] in ['com', 'co', 'edu', 'gov', 'net', 'org', 'ac'] and len(parts[-1]) <= 3:
+                    return ".".join(parts[-3:])
+                else:
+                    return ".".join(parts[-2:])
+            return netloc
         except Exception:
             return url.lower()
 
@@ -297,6 +347,8 @@ class BlockedDatabase:
             
             current_domain = self._get_domain(current_url)
             current_hash = self._hash_url(current_domain)
+
+            # print(current_url, current_hash)
 
             # 1. Kiểm tra Focus Mode
             if focus_status["is_active"]:
@@ -564,7 +616,7 @@ class TaskDatabase:
 
 class StudyDatabase:
     def __init__(self, db_path=None):
-        """Initializes the database for studying (Flashcards and Thinking Room)."""
+        """Initializes the database for studying."""
         if db_path is None:
             base_dir = os.path.dirname(os.path.abspath(__file__))
             self.db_file = os.path.join(base_dir, "db/study.db")
@@ -588,383 +640,396 @@ class StudyDatabase:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                # Memorize
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS study_projects (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,
-                        description TEXT
+                        description TEXT,
+                        created_at INTEGER,
+                        parent_project_id INTEGER,
+                        FOREIGN KEY (parent_project_id) REFERENCES study_projects(id)
                     )
                 ''')
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS flashcards (
+                    CREATE TABLE IF NOT EXISTS study_problems (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        word TEXT NOT NULL,
-                        meaning TEXT NOT NULL,
-                        label TEXT,
-                        other_info TEXT
+                        project_id INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        created_at INTEGER,
+                        FOREIGN KEY (project_id) REFERENCES study_projects(id)
                     )
                 ''')
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS project_flashcards (
-                        project_id INTEGER NOT NULL,
-                        flashcard_id INTEGER NOT NULL,
-                        FOREIGN KEY (project_id) REFERENCES study_projects(id),
-                        FOREIGN KEY (flashcard_id) REFERENCES flashcards(id),
-                        PRIMARY KEY (project_id, flashcard_id)
+                    CREATE TABLE IF NOT EXISTS study_problem_columns (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        problem_id INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        order_index INTEGER DEFAULT 0,
+                        FOREIGN KEY (problem_id) REFERENCES study_problems(id)
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS study_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        project_id INTEGER,
+                        title TEXT NOT NULL,
+                        body TEXT,
+                        created_at INTEGER,
+                        updated_at INTEGER,
+                        FOREIGN KEY (project_id) REFERENCES study_projects(id)
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS study_problem_cards (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        column_id INTEGER NOT NULL,
+                        record_id INTEGER NOT NULL,
+                        order_index INTEGER DEFAULT 0,
+                        FOREIGN KEY (column_id) REFERENCES study_problem_columns(id),
+                        FOREIGN KEY (record_id) REFERENCES study_records(id)
                     )
                 ''')
                 
-                # Thinking
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS thinking_projects (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        problem_statement TEXT
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS thinking_knowledge (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        project_id INTEGER NOT NULL,
-                        name TEXT NOT NULL,
-                        description TEXT,
-                        is_global INTEGER DEFAULT 0,
-                        FOREIGN KEY (project_id) REFERENCES thinking_projects(id)
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS thinking_inferences (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        project_id INTEGER NOT NULL,
-                        name TEXT NOT NULL,
-                        description TEXT,
-                        source_ids TEXT,
-                        is_global INTEGER DEFAULT 0,
-                        FOREIGN KEY (project_id) REFERENCES thinking_projects(id)
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS thinking_questions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        project_id INTEGER NOT NULL,
-                        name TEXT NOT NULL,
-                        description TEXT,
-                        is_global INTEGER DEFAULT 0,
-                        FOREIGN KEY (project_id) REFERENCES thinking_projects(id)
-                    )
-                ''')
-                conn.commit()
-            
-            # Sync architecture
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("INSERT OR IGNORE INTO project_flashcards (project_id, flashcard_id) SELECT project_id, id FROM flashcards WHERE project_id IS NOT NULL")
-                try: cursor.execute("ALTER TABLE thinking_knowledge ADD COLUMN is_global INTEGER DEFAULT 0")
+                # Migrations
+                try: cursor.execute('ALTER TABLE study_projects ADD COLUMN parent_project_id INTEGER REFERENCES study_projects(id)')
                 except: pass
-                try: cursor.execute("ALTER TABLE thinking_inferences ADD COLUMN is_global INTEGER DEFAULT 0")
+                try: cursor.execute('ALTER TABLE study_records ADD COLUMN project_id INTEGER REFERENCES study_projects(id)')
                 except: pass
-                try: cursor.execute("ALTER TABLE thinking_questions ADD COLUMN is_global INTEGER DEFAULT 0")
-                except: pass
+
                 conn.commit()
         except Exception as e:
             db_logger.error(f"Failed to initialize StudyDatabase: {e}")
-        
-    def add_study_project(self, name, description=""):
+            
+    # --- Projects ---
+    def add_study_project(self, name, description="", parent_project_id=None):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO study_projects (name, description) VALUES (?, ?)", (name, description))
+                now = int(time.time())
+                
+                cursor.execute("SELECT id FROM study_projects WHERE name = ?", (name,))
+                exists = cursor.fetchone()
+                
+                cursor.execute("INSERT INTO study_projects (name, description, created_at, parent_project_id) VALUES (?, ?, ?, ?)", (name, description, now, parent_project_id))
                 project_id = cursor.lastrowid
+                
+                if exists:
+                    name = f"[#{project_id}] {name}"
+                    cursor.execute("UPDATE study_projects SET name = ? WHERE id = ?", (name, project_id))
+                    
                 conn.commit()
-            db_logger.info(f"Added flashcard project: '{name}'")
-            return StudyProject(id=project_id, name=name, description=description)
+            db_logger.info(f"Added study project: '{name}'")
+            return StudyProject(id=project_id, name=name, description=description, created_at=now, parent_project_id=parent_project_id)
         except Exception as e:
             db_logger.error(f"Error adding study project {name}: {e}")
             return None
 
-    def get_study_projects(self):
+    def get_study_projects(self, parent_project_id=None):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, name, description FROM study_projects")
+                if parent_project_id is None:
+                    cursor.execute("SELECT id, name, description, created_at, parent_project_id FROM study_projects WHERE parent_project_id IS NULL ORDER BY id DESC")
+                else:
+                    cursor.execute("SELECT id, name, description, created_at, parent_project_id FROM study_projects WHERE parent_project_id = ? ORDER BY id DESC", (parent_project_id,))
                 rows = cursor.fetchall()
-            return [StudyProject(id=row[0], name=row[1], description=row[2]) for row in rows]
+            return [StudyProject(id=row[0], name=row[1], description=row[2], created_at=row[3] or 0, parent_project_id=row[4]) for row in rows]
         except Exception as e:
             db_logger.error(f"Error getting study projects: {e}")
+            return []
+
+    def get_study_project_path(self, project_id):
+        try:
+            path = []
+            current_id = project_id
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                while current_id:
+                    cursor.execute("SELECT id, name, description, created_at, parent_project_id FROM study_projects WHERE id = ?", (current_id,))
+                    row = cursor.fetchone()
+                    if not row:
+                        break
+                    proj = StudyProject(id=row[0], name=row[1], description=row[2], created_at=row[3] or 0, parent_project_id=row[4])
+                    path.insert(0, proj)
+                    current_id = row[4]
+            return path
+        except Exception as e:
+            db_logger.error(f"Error getting project path for {project_id}: {e}")
             return []
 
     def delete_study_project(self, project_id):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM project_flashcards WHERE project_id = ?", (project_id,))
+                # Recursive deletion of subprojects not cleanly supported without CTE or multiple queries
+                # For now, delete direct child records and problems
+                cursor.execute("DELETE FROM study_records WHERE project_id = ?", (project_id,))
+                cursor.execute("DELETE FROM study_problem_cards WHERE column_id IN (SELECT id FROM study_problem_columns WHERE problem_id IN (SELECT id FROM study_problems WHERE project_id = ?))", (project_id,))
+                cursor.execute("DELETE FROM study_problem_columns WHERE problem_id IN (SELECT id FROM study_problems WHERE project_id = ?)", (project_id,))
+                cursor.execute("DELETE FROM study_problems WHERE project_id = ?", (project_id,))
                 cursor.execute("DELETE FROM study_projects WHERE id = ?", (project_id,))
+                # Let's also set parent_project_id to NULL for any children to avoid orphans that can't be reached
+                cursor.execute("UPDATE study_projects SET parent_project_id = NULL WHERE parent_project_id = ?", (project_id,))
                 conn.commit()
             db_logger.info(f"Deleted study project ID {project_id}")
         except Exception as e:
             db_logger.error(f"Error deleting study project {project_id}: {e}")
 
-    def delete_flashcard(self, card_id):
+    # --- Problems ---
+    def add_study_problem(self, project_id, title, description=""):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM project_flashcards WHERE flashcard_id = ?", (card_id,))
-                cursor.execute("DELETE FROM flashcards WHERE id = ?", (card_id,))
-                conn.commit()
-            db_logger.info(f"Deleted flashcard ID {card_id}")
-        except Exception as e:
-            db_logger.error(f"Error deleting flashcard {card_id}: {e}")
-
-    def add_flashcard(self, word, meaning, label, other_info, project_id=None):
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO flashcards (word, meaning, label, other_info) VALUES (?, ?, ?, ?)", 
-                            (word, meaning, label, other_info))
-                flashcard_id = cursor.lastrowid
+                now = int(time.time())
                 
-                if project_id:
-                    cursor.execute("INSERT INTO project_flashcards (project_id, flashcard_id) VALUES (?, ?)", (project_id, flashcard_id))
+                cursor.execute("SELECT id FROM study_problems WHERE title = ?", (title,))
+                exists = cursor.fetchone()
+                
+                cursor.execute("INSERT INTO study_problems (project_id, title, description, created_at) VALUES (?, ?, ?, ?)", (project_id, title, description, now))
+                problem_id = cursor.lastrowid
+                
+                if exists:
+                    title = f"[#{problem_id}] {title}"
+                    cursor.execute("UPDATE study_problems SET title = ? WHERE id = ?", (title, problem_id))
+                    
                 conn.commit()
-            db_logger.info(f"Added flashcard: '{word}' to project ID {project_id}")
-            return FlashcardItem(id=flashcard_id, project_id=project_id, word=word, meaning=meaning, label=label, other_info=other_info)
+            db_logger.info(f"Added study problem: '{title}'")
+            return StudyProblem(id=problem_id, project_id=project_id, title=title, description=description, created_at=now)
         except Exception as e:
-            db_logger.error(f"Error adding flashcard {word}: {e}")
+            db_logger.error(f"Error adding study problem {title}: {e}")
             return None
 
-    def add_flashcards_bulk(self, cards, project_id=None, default_label="", default_other_info=""):
-        if not cards:
-            return []
-
-        try:
-            normalized = []
-            for idx, card in enumerate(cards):
-                word = (card.get("word") or "").strip()
-                meaning = (card.get("meaning") or "").strip()
-                if not word or not meaning:
-                    continue
-                label = (card.get("label") if card.get("label") is not None else default_label) or ""
-                other_info = (card.get("other_info") if card.get("other_info") is not None else default_other_info) or ""
-                normalized.append((word, meaning, label, other_info))
-
-            created = []
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                for word, meaning, label, other_info in normalized:
-                    cursor.execute(
-                        "INSERT INTO flashcards (word, meaning, label, other_info) VALUES (?, ?, ?, ?)",
-                        (word, meaning, label, other_info),
-                    )
-                    flashcard_id = cursor.lastrowid
-                    if project_id:
-                        cursor.execute(
-                            "INSERT INTO project_flashcards (project_id, flashcard_id) VALUES (?, ?)",
-                            (project_id, flashcard_id),
-                        )
-                    created.append(FlashcardItem(id=flashcard_id, project_id=project_id, word=word, meaning=meaning, label=label, other_info=other_info))
-                conn.commit()
-            db_logger.info(f"Bulk added {len(created)} flashcards to project ID {project_id}")
-            return created
-        except Exception as e:
-            db_logger.error(f"Error bulk adding flashcards: {e}")
-            return []
-
-    def get_flashcards(self):
+    def get_study_problems(self, project_id):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT f.id, pf.project_id, f.word, f.meaning, f.label, f.other_info 
-                    FROM flashcards f
-                    LEFT JOIN project_flashcards pf ON f.id = pf.flashcard_id
-                ''')
+                cursor.execute("SELECT id, project_id, title, description, created_at FROM study_problems WHERE project_id = ? ORDER BY id DESC", (project_id,))
                 rows = cursor.fetchall()
-            return [FlashcardItem(id=row[0], project_id=row[1], word=row[2], meaning=row[3], label=row[4], other_info=row[5]) for row in rows]
+            return [StudyProblem(id=row[0], project_id=row[1], title=row[2], description=row[3] or "", created_at=row[4] or 0) for row in rows]
         except Exception as e:
-            db_logger.error(f"Error getting flashcards: {e}")
+            db_logger.error(f"Error getting study problems: {e}")
             return []
 
-    # --- THINKING ROOM METHODS ---
-    def add_thinking_project(self, name, problem_statement):
+    def delete_study_problem(self, problem_id):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO thinking_projects (name, problem_statement) VALUES (?, ?)", (name, problem_statement))
+                cursor.execute("DELETE FROM study_problem_cards WHERE column_id IN (SELECT id FROM study_problem_columns WHERE problem_id = ?)", (problem_id,))
+                cursor.execute("DELETE FROM study_problem_columns WHERE problem_id = ?", (problem_id,))
+                cursor.execute("DELETE FROM study_problems WHERE id = ?", (problem_id,))
                 conn.commit()
-            db_logger.info(f"Added thinking project: '{name}'")
         except Exception as e:
-            db_logger.error(f"Error adding thinking project {name}: {e}")
+            db_logger.error(f"Error deleting study problem {problem_id}: {e}")
 
-    def update_thinking_project(self, project_id, problem_statement):
+    def update_study_problem(self, problem_id, title=None, description=None):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("UPDATE thinking_projects SET problem_statement = ? WHERE id = ?", (problem_statement, project_id))
+                if title is not None and description is not None:
+                    cursor.execute("UPDATE study_problems SET title = ?, description = ? WHERE id = ?", (title, description, problem_id))
+                elif title is not None:
+                    cursor.execute("UPDATE study_problems SET title = ? WHERE id = ?", (title, problem_id))
+                elif description is not None:
+                    cursor.execute("UPDATE study_problems SET description = ? WHERE id = ?", (description, problem_id))
                 conn.commit()
-            db_logger.info(f"Updated Thinking Project ID {project_id}")
         except Exception as e:
-            db_logger.error(f"Error updating thinking project {project_id}: {e}")
+            db_logger.error(f"Error updating study problem {problem_id}: {e}")
 
-    def get_thinking_projects(self):
+    # --- Columns ---
+    def add_study_column(self, problem_id, name, order_index=0):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, name, problem_statement FROM thinking_projects")
+                cursor.execute("INSERT INTO study_problem_columns (problem_id, name, order_index) VALUES (?, ?, ?)", (problem_id, name, order_index))
+                col_id = cursor.lastrowid
+                conn.commit()
+            return StudyColumn(id=col_id, problem_id=problem_id, name=name, order_index=order_index)
+        except Exception as e:
+            db_logger.error(f"Error adding study column: {e}")
+            return None
+
+    def get_study_columns(self, problem_id):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, problem_id, name, order_index FROM study_problem_columns WHERE problem_id = ? ORDER BY order_index ASC", (problem_id,))
                 rows = cursor.fetchall()
-            return [ThinkingProject(id=row[0], name=row[1], problem_statement=row[2]) for row in rows]
+            return [StudyColumn(id=row[0], problem_id=row[1], name=row[2], order_index=row[3]) for row in rows]
         except Exception as e:
-            db_logger.error(f"Error getting thinking projects: {e}")
+            db_logger.error(f"Error getting columns: {e}")
             return []
 
-    def delete_thinking_project(self, project_id):
+    def delete_study_column(self, column_id):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM thinking_knowledge WHERE project_id = ?", (project_id,))
-                cursor.execute("DELETE FROM thinking_inferences WHERE project_id = ?", (project_id,))
-                cursor.execute("DELETE FROM thinking_questions WHERE project_id = ?", (project_id,))
-                cursor.execute("DELETE FROM thinking_projects WHERE id = ?", (project_id,))
+                cursor.execute("DELETE FROM study_problem_cards WHERE column_id = ?", (column_id,))
+                cursor.execute("DELETE FROM study_problem_columns WHERE id = ?", (column_id,))
                 conn.commit()
-            db_logger.info(f"Deleted thinking project ID {project_id}")
         except Exception as e:
-            db_logger.error(f"Error deleting thinking project {project_id}: {e}")
+            db_logger.error(f"Error deleting column {column_id}: {e}")
 
-    def delete_thinking_item(self, item_type, item_id):
+    def update_study_column(self, column_id, name):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                table = f"thinking_{item_type}"
-                if item_type in ["knowledge", "inference", "question"]:
-                    cursor.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
-                    conn.commit()
-            db_logger.info(f"Deleted thinking item ({item_type}) ID {item_id}")
-        except Exception as e:
-            db_logger.error(f"Error deleting thinking item {item_type}/{item_id}: {e}")
-
-    def add_thinking_knowledge(self, project_id, name, description, is_global=0):
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO thinking_knowledge (project_id, name, description, is_global) VALUES (?, ?, ?, ?)", (project_id, name, description, is_global))
-                item_id = cursor.lastrowid
+                cursor.execute("UPDATE study_problem_columns SET name = ? WHERE id = ?", (name, column_id))
                 conn.commit()
-            db_logger.info(f"Added knowledge: '{name}' to thinking project ID {project_id}")
-            return ThinkingItem(id=item_id, project_id=project_id, name=name, description=description, is_global=bool(is_global), type='knowledge')
         except Exception as e:
-            db_logger.error(f"Error adding thinking knowledge {name}: {e}")
+            db_logger.error(f"Error updating column {column_id}: {e}")
+
+    # --- Records ---
+    def add_study_record(self, title, body="", project_id=None):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                now = int(time.time())
+                
+                cursor.execute("SELECT id FROM study_records WHERE title = ?", (title,))
+                exists = cursor.fetchone()
+                
+                cursor.execute("INSERT INTO study_records (title, body, created_at, updated_at, project_id) VALUES (?, ?, ?, ?, ?)", (title, body, now, now, project_id))
+                rec_id = cursor.lastrowid
+                
+                if exists:
+                    title = f"[#{rec_id}] {title}"
+                    cursor.execute("UPDATE study_records SET title = ? WHERE id = ?", (title, rec_id))
+                    
+                conn.commit()
+            return StudyRecord(id=rec_id, title=title, body=body, created_at=now, updated_at=now, project_id=project_id)
+        except Exception as e:
+            db_logger.error(f"Error adding record: {e}")
             return None
 
-    def add_thinking_inference(self, project_id, name, description, source_ids, is_global=0):
+    def get_study_records(self, limit=50, offset=0, search="", project_id=None):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO thinking_inferences (project_id, name, description, source_ids, is_global) VALUES (?, ?, ?, ?, ?)", (project_id, name, description, source_ids, is_global))
-                item_id = cursor.lastrowid
-                conn.commit()
-            db_logger.info(f"Added inference: '{name}' to thinking project ID {project_id}")
-            return ThinkingItem(id=item_id, project_id=project_id, name=name, description=description, source_ids=source_ids, is_global=bool(is_global), type='inference')
+                params = []
+                query = "SELECT id, title, body, created_at, updated_at, project_id FROM study_records WHERE 1=1"
+                
+                if project_id is not None:
+                    query += " AND project_id = ?"
+                    params.append(project_id)
+                else:
+                    # Don't show project records when querying all by default unless we specifically want to
+                    # Actually, if project_id is None and we want standalone records?
+                    # Let's say if search is empty and project_id is None, return all? Or maybe just keep old behavior
+                    pass
+                
+                if search:
+                    like = f"%{search}%"
+                    query += " AND (title LIKE ? OR body LIKE ?)"
+                    params.extend([like, like])
+                    
+                query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
+                
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+            return [StudyRecord(id=row[0], title=row[1], body=row[2], created_at=row[3] or 0, updated_at=row[4] or 0, project_id=row[5]) for row in rows]
         except Exception as e:
-            db_logger.error(f"Error adding thinking inference {name}: {e}")
-            return None
+            db_logger.error(f"Error getting records: {e}")
+            return []
 
-    def add_thinking_question(self, project_id, name, description, is_global=0):
+    def get_study_record(self, record_id):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO thinking_questions (project_id, name, description, is_global) VALUES (?, ?, ?, ?)", (project_id, name, description, is_global))
-                item_id = cursor.lastrowid
-                conn.commit()
-            db_logger.info(f"Added question: '{name}' to thinking project ID {project_id}")
-            return ThinkingItem(id=item_id, project_id=project_id, name=name, description=description, is_global=bool(is_global), type='question')
-        except Exception as e:
-            db_logger.error(f"Error adding thinking question {name}: {e}")
-            return None
-
-    def update_thinking_item(self, item_type, item_id, name, description, source_ids=None):
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                if item_type == "knowledge":
-                    cursor.execute("UPDATE thinking_knowledge SET name = ?, description = ? WHERE id = ?", (name, description, item_id))
-                elif item_type == "inference":
-                    if source_ids is not None:
-                        cursor.execute("UPDATE thinking_inferences SET name = ?, description = ?, source_ids = ? WHERE id = ?", (name, description, source_ids, item_id))
-                    else:
-                        cursor.execute("UPDATE thinking_inferences SET name = ?, description = ? WHERE id = ?", (name, description, item_id))
-                elif item_type == "question":
-                    cursor.execute("UPDATE thinking_questions SET name = ?, description = ? WHERE id = ?", (name, description, item_id))
-                conn.commit()
-            
-            # Fetch back
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                if item_type == "knowledge":
-                    cursor.execute("SELECT id, project_id, name, description, is_global FROM thinking_knowledge WHERE id = ?", (item_id,))
-                elif item_type == "inference":
-                    cursor.execute("SELECT id, project_id, name, description, source_ids, is_global FROM thinking_inferences WHERE id = ?", (item_id,))
-                elif item_type == "question":
-                    cursor.execute("SELECT id, project_id, name, description, is_global FROM thinking_questions WHERE id = ?", (item_id,))
+                cursor.execute("SELECT id, title, body, created_at, updated_at, project_id FROM study_records WHERE id = ?", (record_id,))
                 row = cursor.fetchone()
-                
             if row:
-                if item_type == 'inference':
-                    return ThinkingItem(id=row[0], project_id=row[1], name=row[2], description=row[3], source_ids=row[4], is_global=bool(row[5]), type=item_type)
-                return ThinkingItem(id=row[0], project_id=row[1], name=row[2], description=row[3], is_global=bool(row[4]), type=item_type)
+                return StudyRecord(id=row[0], title=row[1], body=row[2], created_at=row[3] or 0, updated_at=row[4] or 0, project_id=row[5])
             return None
         except Exception as e:
-            db_logger.error(f"Error updating thinking item {item_type}/{item_id}: {e}")
+            db_logger.error(f"Error getting record {record_id}: {e}")
             return None
 
-    def toggle_global_thinking_item(self, item_type, item_id, is_global):
+    def update_study_record(self, record_id, title, body):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                table = f"thinking_{item_type}"
-                if item_type in ["knowledge", "inference", "question"]:
-                    cursor.execute(f"UPDATE {table} SET is_global = ? WHERE id = ?", (is_global, item_id))
-                    conn.commit()
-            db_logger.info(f"Set is_global={is_global} for {item_type} ID {item_id}")
+                now = int(time.time())
+                
+                cursor.execute("SELECT id FROM study_records WHERE title = ? AND id != ?", (title, record_id))
+                if cursor.fetchone():
+                    title = f"[#{record_id}] {title}"
+                
+                cursor.execute("UPDATE study_records SET title = ?, body = ?, updated_at = ? WHERE id = ?", (title, body, now, record_id))
+                conn.commit()
         except Exception as e:
-            db_logger.error(f"Error toggling global for {item_type}/{item_id}: {e}")
+            db_logger.error(f"Error updating record {record_id}: {e}")
 
-    def get_all_thinking_knowledge(self):
+    def delete_study_record(self, record_id):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT k.id, k.project_id, k.name, k.description, p.name, 'knowledge' as type 
-                    FROM thinking_knowledge k LEFT JOIN thinking_projects p ON k.project_id = p.id WHERE k.is_global = 1
-                    UNION
-                    SELECT k.id, k.project_id, k.name, k.description, p.name, 'inference' as type 
-                    FROM thinking_inferences k LEFT JOIN thinking_projects p ON k.project_id = p.id WHERE k.is_global = 1
-                    UNION
-                    SELECT k.id, k.project_id, k.name, k.description, p.name, 'question' as type 
-                    FROM thinking_questions k LEFT JOIN thinking_projects p ON k.project_id = p.id WHERE k.is_global = 1
-                ''')
-                rows = cursor.fetchall()
-            return [ThinkingItem(id=row[0], project_id=row[1], name=row[2], description=row[3], project_name=row[4], type=row[5], is_global=True) for row in rows]
+                cursor.execute("DELETE FROM study_problem_cards WHERE record_id = ?", (record_id,))
+                cursor.execute("DELETE FROM study_records WHERE id = ?", (record_id,))
+                conn.commit()
         except Exception as e:
-            db_logger.error(f"Error getting all global knowledge: {e}")
+            db_logger.error(f"Error deleting record {record_id}: {e}")
+
+    def search_all_study_items(self, query=""):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                results = []
+                like_query = f"%{query}%"
+
+                # Search Projects
+                cursor.execute("SELECT id, name, parent_project_id FROM study_projects WHERE name LIKE ?", (like_query,))
+                for row in cursor.fetchall():
+                    results.append({"type": "project", "id": row[0], "name": row[1], "project_id": row[2] or row[0]})
+
+                # Search Problems
+                cursor.execute("SELECT id, title, project_id FROM study_problems WHERE title LIKE ?", (like_query,))
+                for row in cursor.fetchall():
+                    results.append({"type": "problem", "id": row[0], "name": row[1], "project_id": row[2]})
+
+                # Search Records
+                cursor.execute("SELECT id, title, project_id FROM study_records WHERE title LIKE ?", (like_query,))
+                for row in cursor.fetchall():
+                    results.append({"type": "record", "id": row[0], "name": row[1], "project_id": row[2]})
+
+                return results
+        except Exception as e:
+            db_logger.error(f"Error searching all study items: {e}")
             return []
 
-    def get_thinking_items(self, project_id):
+    # --- Problem Cards ---
+    def add_study_problem_card(self, column_id, record_id, order_index=0):
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, name, description, is_global FROM thinking_knowledge WHERE project_id = ?", (project_id,))
-                knowledge = [ThinkingItem(id=row[0], project_id=project_id, name=row[1], description=row[2], is_global=bool(row[3]), type='knowledge') for row in cursor.fetchall()]
-                
-                cursor.execute("SELECT id, name, description, source_ids, is_global FROM thinking_inferences WHERE project_id = ?", (project_id,))
-                inferences = [ThinkingItem(id=row[0], project_id=project_id, name=row[1], description=row[2], source_ids=row[3], is_global=bool(row[4]), type='inference') for row in cursor.fetchall()]
-                
-                cursor.execute("SELECT id, name, description, is_global FROM thinking_questions WHERE project_id = ?", (project_id,))
-                questions = [ThinkingItem(id=row[0], project_id=project_id, name=row[1], description=row[2], is_global=bool(row[3]), type='question') for row in cursor.fetchall()]
-            
-            return ThinkingItemsResponse(knowledge=knowledge, inferences=inferences, questions=questions)
+                cursor.execute("INSERT INTO study_problem_cards (column_id, record_id, order_index) VALUES (?, ?, ?)", (column_id, record_id, order_index))
+                card_id = cursor.lastrowid
+                conn.commit()
+            return StudyProblemCard(id=card_id, column_id=column_id, record_id=record_id, order_index=order_index)
         except Exception as e:
-            db_logger.error(f"Error getting thinking items for project {project_id}: {e}")
-            return ThinkingItemsResponse(knowledge=[], inferences=[], questions=[])
+            db_logger.error(f"Error adding problem card: {e}")
+            return None
+
+    def get_study_problem_cards(self, column_id):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, column_id, record_id, order_index FROM study_problem_cards WHERE column_id = ? ORDER BY order_index ASC", (column_id,))
+                rows = cursor.fetchall()
+            return [StudyProblemCard(id=row[0], column_id=row[1], record_id=row[2], order_index=row[3]) for row in rows]
+        except Exception as e:
+            db_logger.error(f"Error getting problem cards: {e}")
+            return []
+
+    def delete_study_problem_card(self, card_id):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM study_problem_cards WHERE id = ?", (card_id,))
+                conn.commit()
+        except Exception as e:
+            db_logger.error(f"Error deleting problem card {card_id}: {e}")
+
 
 class ChatDatabase:
     def __init__(self, db_path=None):

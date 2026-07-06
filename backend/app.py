@@ -2,6 +2,7 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse, FileResponse
 from starlette.routing import Route, Mount
 from starlette.staticfiles import StaticFiles
+from starlette.templating import Jinja2Templates
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from datetime import datetime
@@ -18,6 +19,9 @@ from schema import serialize_to_dict
 from model.chatbot import ChatBot
 from model.similarity import AIModelFactory, TraditionalSimilarityModel
 import webview
+
+templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "page")
+templates = Jinja2Templates(directory=templates_dir)
 
 # Set up Logger for API requests
 log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user", "log")
@@ -248,8 +252,27 @@ class Blocker:
     @staticmethod
     @api_error_handler
     async def homepage(request):
-        frontend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "page", "index.html")
-        return FileResponse(frontend_path)
+        return templates.TemplateResponse(request, "main/index.html")
+
+    @staticmethod
+    @api_error_handler
+    async def blocklist(request):
+        return templates.TemplateResponse(request, "main/blocklist.html")
+
+    @staticmethod
+    @api_error_handler
+    async def tasks(request):
+        return templates.TemplateResponse(request, "main/tasks.html")
+
+    @staticmethod
+    @api_error_handler
+    async def study(request):
+        return templates.TemplateResponse(request, "main/study.html")
+
+    @staticmethod
+    @api_error_handler
+    async def chat(request):
+        return templates.TemplateResponse(request, "main/chat.html")
 
 class EventManager:
     @staticmethod
@@ -290,160 +313,233 @@ class EventManager:
         return JSONResponse({"status": "200 <OK>", "message": "Event deleted"})
 
 class StudyManager:
-    class Memorize:
-        @staticmethod
-        @api_error_handler
-        async def route_get_projects(request):
-            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_study_projects())})
-            
-        @staticmethod
-        @api_error_handler
-        async def route_add_project(request):
-            data = await request.json()
-            study_db.add_study_project(data.get("name", "Untitled"), data.get("description", ""))
-            return JSONResponse({"status": "200 <OK>", "message": "Project added"})
+    # --- Projects ---
+    @staticmethod
+    @api_error_handler
+    async def route_get_projects(request):
+        parent_id_str = request.query_params.get("parent_project_id")
+        parent_id = int(parent_id_str) if parent_id_str and parent_id_str != 'null' else None
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_study_projects(parent_id))})
 
-        @staticmethod
-        @api_error_handler
-        async def route_delete_project(request):
-            data = await request.json()
-            project_id = data.get("id")
-            if project_id:
-                study_db.delete_study_project(project_id)
-            return JSONResponse({"status": "200 <OK>", "message": "Project deleted"})
+    @staticmethod
+    @api_error_handler
+    async def route_add_project(request):
+        data = await request.json()
+        parent_id = data.get("parent_project_id")
+        study_db.add_study_project(data.get("name", "Untitled"), data.get("description", ""), parent_id)
+        return JSONResponse({"status": "200 <OK>", "message": "Project added"})
 
-        @staticmethod
-        @api_error_handler
-        async def route_delete_flashcard(request):
-            data = await request.json()
-            card_id = data.get("id")
-            if card_id:
-                study_db.delete_flashcard(card_id)
-            return JSONResponse({"status": "200 <OK>", "message": "Flashcard deleted"})
+    @staticmethod
+    @api_error_handler
+    async def route_delete_project(request):
+        data = await request.json()
+        project_id = data.get("id")
+        if project_id:
+            study_db.delete_study_project(project_id)
+        return JSONResponse({"status": "200 <OK>", "message": "Project deleted"})
 
-        @staticmethod
-        @api_error_handler
-        async def route_get_flashcards(request):
-            data = serialize_to_dict(study_db.get_flashcards())
-            return JSONResponse({"status": "200 <OK>", "data": data})
-    
-        @staticmethod
-        @api_error_handler
-        async def route_add_flashcard(request):
-            data = await request.json()
-            study_db.add_flashcard(
-                word=data.get("word", ""),
-                meaning=data.get("meaning", ""),
-                label=data.get("label", ""),
-                other_info=data.get("other_info", ""),
-                project_id=data.get("project_id")
-            )
-            return JSONResponse({"status": "200 <OK>", "message": "Flashcard added"})
-    
-        @staticmethod
-        @api_error_handler
-        async def route_check_answer(request):
-            data = await request.json()
-            req_eval_mode = data.get("eval_mode", "similarity")
-            provider, provider_error = ChatbotManager._resolve_provider(data.get("provider"))
-            if provider_error:
-                return JSONResponse({"status": "400 <Bad Request>", "message": provider_error}, status_code=400)
+    @staticmethod
+    @api_error_handler
+    async def route_get_project_path(request):
+        project_id_str = request.query_params.get("id")
+        if not project_id_str:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing id"}, status_code=400)
+        project_id = int(project_id_str)
+        path = study_db.get_study_project_path(project_id)
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(path)})
 
-            api_key, api_key_error = ChatbotManager._resolve_api_key(provider, data.get("api_key"))
-            if api_key_error:
-                app_logger.warning(f"No valid API key for provider '{provider}'. Falling back to Traditional.")
-                model = TraditionalSimilarityModel()
-                similarity = await model.calculate_similarity(data.get("ground_truth", ""), data.get("user_answer", ""))
-            else:
-                eval_model_name = ChatbotManager._resolve_eval_model_name(provider)
-                model = AIModelFactory.create(req_eval_mode, provider, api_key, eval_model_name)
-                similarity = await model.calculate_similarity(data.get("ground_truth", ""), data.get("user_answer", ""))
-                app_logger.info(f"Danh gia bai tap thanh cong bang API cua {provider}")
+    # --- Problems ---
+    @staticmethod
+    @api_error_handler
+    async def route_get_problems(request):
+        project_id = request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing project_id"}, status_code=400)
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_study_problems(project_id))})
 
-            return JSONResponse({"status": "200 <OK>", "similarity": float(similarity)})
+    @staticmethod
+    @api_error_handler
+    async def route_add_problem(request):
+        data = await request.json()
+        project_id = data.get("project_id")
+        title = data.get("title", "Untitled Problem")
+        description = data.get("description", "")
+        if not project_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing project_id"}, status_code=400)
+        
+        problem = study_db.add_study_problem(project_id, title, description)
+        # Create default columns
+        study_db.add_study_column(problem.id, "Knowledge", 0)
+        study_db.add_study_column(problem.id, "Question", 1)
+        
+        return JSONResponse({"status": "200 <OK>", "message": "Problem added"})
 
-    class Thinking:
-        @staticmethod
-        @api_error_handler
-        async def route_get_thinking_projects(request):
-            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_thinking_projects())})
-    
-        @staticmethod
-        @api_error_handler
-        async def route_add_thinking_project(request):
-            data = await request.json()
-            app_logger.info(f"Adding/Updating thinking project: {data.get('name')}")
-            if "id" in data and "problem_statement" in data and len(data) == 2:
-                study_db.update_thinking_project(data["id"], data["problem_statement"])
-            else:
-                study_db.add_thinking_project(data.get("name", "Untitled"), data.get("problem_statement", ""))
-            return JSONResponse({"status": "200 <OK>", "message": "Project saved"})
-    
-        @staticmethod
-        @api_error_handler
-        async def route_get_all_knowledge(request):
-            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_all_thinking_knowledge())})
-    
-        @staticmethod
-        @api_error_handler
-        async def route_get_thinking_items(request):
-            project_id = request.query_params.get("project_id")
-            if not project_id:
-                return JSONResponse({"status": "400 <Bad Request>", "message": "Missing project_id"}, status_code=400)
-            return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_thinking_items(project_id))})
-    
-        @staticmethod
-        @api_error_handler
-        async def route_add_thinking_item(request):
-            data = await request.json()
-            item_id, item_type, project_id = data.get("id"), data.get("type"), data.get("project_id")
-            name, description, source_ids = data.get("name", ""), data.get("description", ""), data.get("source_ids")
-            is_global = data.get("is_global", 0)
+    @staticmethod
+    @api_error_handler
+    async def route_delete_problem(request):
+        data = await request.json()
+        problem_id = data.get("id")
+        if problem_id:
+            study_db.delete_study_problem(problem_id)
+        return JSONResponse({"status": "200 <OK>", "message": "Problem deleted"})
 
-            app_logger.info(f"Request to {'update' if item_id else 'add'} thinking item: {name} (type: {item_type})")
-            if description:
-                app_logger.info(f"Item Content: {description[:1000]}...")
+    @staticmethod
+    @api_error_handler
+    async def route_update_problem(request):
+        data = await request.json()
+        problem_id = data.get("id")
+        if not problem_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing id"}, status_code=400)
+        title = data.get("title")
+        description = data.get("description")
+        study_db.update_study_problem(problem_id, title, description)
+        return JSONResponse({"status": "200 <OK>", "message": "Problem updated"})
 
-            if item_id:
-                updated_item = study_db.update_thinking_item(item_type, item_id, name, description, source_ids)
-                return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(updated_item)})
-            else:
-                new_item = None
-                if item_type == "knowledge": new_item = study_db.add_thinking_knowledge(project_id, name, description, is_global)
-                elif item_type == "inference": new_item = study_db.add_thinking_inference(project_id, name, description, source_ids or "", is_global)
-                elif item_type == "question": new_item = study_db.add_thinking_question(project_id, name, description, is_global)
+    # --- Columns ---
+    @staticmethod
+    @api_error_handler
+    async def route_get_columns(request):
+        problem_id = request.query_params.get("problem_id")
+        if not problem_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing problem_id"}, status_code=400)
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_study_columns(problem_id))})
 
-                return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(new_item)})
+    @staticmethod
+    @api_error_handler
+    async def route_add_column(request):
+        data = await request.json()
+        problem_id = data.get("problem_id")
+        name = data.get("name", "New Column")
+        order_index = data.get("order_index", 0)
+        if not problem_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing problem_id"}, status_code=400)
+        study_db.add_study_column(problem_id, name, order_index)
+        return JSONResponse({"status": "200 <OK>", "message": "Column added"})
 
-        @staticmethod
-        @api_error_handler
-        async def route_delete_thinking_project(request):
-            data = await request.json()
-            project_id = data.get("id")
-            if project_id:
-                study_db.delete_thinking_project(project_id)
-            return JSONResponse({"status": "200 <OK>", "message": "Project deleted"})
+    @staticmethod
+    @api_error_handler
+    async def route_update_column(request):
+        data = await request.json()
+        column_id = data.get("id")
+        name = data.get("name")
+        if column_id and name:
+            study_db.update_study_column(column_id, name)
+        return JSONResponse({"status": "200 <OK>", "message": "Column updated"})
 
-        @staticmethod
-        @api_error_handler
-        async def route_delete_thinking_item(request):
-            data = await request.json()
-            item_id = data.get("id")
-            item_type = data.get("type")
-            if item_id and item_type:
-                study_db.delete_thinking_item(item_type, item_id)
-            return JSONResponse({"status": "200 <OK>", "message": f"{item_type} deleted"})
+    @staticmethod
+    @api_error_handler
+    async def route_delete_column(request):
+        data = await request.json()
+        column_id = data.get("id")
+        if column_id:
+            study_db.delete_study_column(column_id)
+        return JSONResponse({"status": "200 <OK>", "message": "Column deleted"})
 
-        @staticmethod
-        @api_error_handler
-        async def route_toggle_global(request):
-            data = await request.json()
-            item_id = data.get("id")
-            item_type = data.get("type")
-            is_global = 1 if data.get("is_global") else 0
-            if item_id and item_type:
-                study_db.toggle_global_thinking_item(item_type, item_id, is_global)
-            return JSONResponse({"status": "200 <OK>", "message": f"Toggled global for {item_type}"})
+    # --- Records ---
+    @staticmethod
+    @api_error_handler
+    async def route_get_records(request):
+        limit = int(request.query_params.get("limit", 50))
+        offset = int(request.query_params.get("offset", 0))
+        search = request.query_params.get("search", "")
+        project_id_str = request.query_params.get("project_id")
+        project_id = int(project_id_str) if project_id_str and project_id_str != 'null' else None
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(study_db.get_study_records(limit, offset, search, project_id))})
+
+    @staticmethod
+    @api_error_handler
+    async def route_get_record(request):
+        record_id = request.query_params.get("id")
+        if not record_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing id"}, status_code=400)
+        data = study_db.get_study_record(record_id)
+        if not data:
+            return JSONResponse({"status": "404 <Not Found>", "message": "Record not found"}, status_code=404)
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(data)})
+
+    @staticmethod
+    @api_error_handler
+    async def route_add_record(request):
+        data = await request.json()
+        title = data.get("title", "Untitled Record")
+        body = data.get("body", "")
+        project_id = data.get("project_id")
+        record = study_db.add_study_record(title, body, project_id)
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(record)})
+
+    @staticmethod
+    @api_error_handler
+    async def route_update_record(request):
+        data = await request.json()
+        record_id = data.get("id")
+        title = data.get("title", "Untitled")
+        body = data.get("body", "")
+        if record_id:
+            study_db.update_study_record(record_id, title, body)
+        return JSONResponse({"status": "200 <OK>", "message": "Record updated"})
+
+    @staticmethod
+    @api_error_handler
+    async def route_delete_record(request):
+        data = await request.json()
+        record_id = data.get("id")
+        if record_id:
+            study_db.delete_study_record(record_id)
+        return JSONResponse({"status": "200 <OK>", "message": "Record deleted"})
+
+    # --- Problem Cards ---
+    @staticmethod
+    @api_error_handler
+    async def route_get_problem_cards(request):
+        column_id = request.query_params.get("column_id")
+        if not column_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing column_id"}, status_code=400)
+        cards = study_db.get_study_problem_cards(column_id)
+        # Hydrate cards with record data
+        hydrated_cards = []
+        for card in cards:
+            rec = study_db.get_study_record(card.record_id)
+            cd = serialize_to_dict(card)
+            cd["record_title"] = rec.title if rec else "Unknown Record"
+            hydrated_cards.append(cd)
+
+        return JSONResponse({"status": "200 <OK>", "data": hydrated_cards})
+
+    @staticmethod
+    @api_error_handler
+    async def route_add_problem_card(request):
+        data = await request.json()
+        column_id = data.get("column_id")
+        record_id = data.get("record_id")
+        order_index = data.get("order_index", 0)
+        
+        # If record_id is not provided but title/body are, create a new record first
+        if not record_id and "title" in data:
+            record = study_db.add_study_record(data.get("title"), data.get("body", ""))
+            record_id = record.id
+
+        if not column_id or not record_id:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "Missing column_id or record_id"}, status_code=400)
+
+        card = study_db.add_study_problem_card(column_id, record_id, order_index)
+        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(card)})
+
+    @staticmethod
+    @api_error_handler
+    async def route_delete_problem_card(request):
+        data = await request.json()
+        card_id = data.get("id")
+        if card_id:
+            study_db.delete_study_problem_card(card_id)
+        return JSONResponse({"status": "200 <OK>", "message": "Problem card deleted"})
+
+    @staticmethod
+    @api_error_handler
+    async def route_search(request):
+        query = request.query_params.get("q", "")
+        results = study_db.search_all_study_items(query)
+        return JSONResponse({"status": "200 <OK>", "data": results})
+
 
 class ChatbotManager:
     VALID_PROVIDERS = {"gemini", "openai", "openrouter"}
@@ -778,7 +874,7 @@ class SettingsManager:
 
 # 2. API Routing
 frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
-os.makedirs(frontend_dir, exist_ok=True) # Äáº£m báº£o thÆ° má»¥c tá»“n táº¡i Ä‘á»ƒ trÃ¡nh lá»—i
+os.makedirs(frontend_dir, exist_ok=True)
 
 routes = [
     Route('/api/block', endpoint=Blocker.route_add_block, methods=['POST']),
@@ -793,21 +889,27 @@ routes = [
     Route('/api/events', endpoint=EventManager.route_get_events, methods=['GET']),
     Route('/api/events', endpoint=EventManager.route_add_event, methods=['POST']),
     Route('/api/events', endpoint=EventManager.route_delete_event, methods=['DELETE']),
-    Route('/api/study/memorize/projects', endpoint=StudyManager.Memorize.route_get_projects, methods=['GET']),
-    Route('/api/study/memorize/projects', endpoint=StudyManager.Memorize.route_add_project, methods=['POST']),
-    Route('/api/study/memorize/projects', endpoint=StudyManager.Memorize.route_delete_project, methods=['DELETE']),
-    Route('/api/study/memorize/flashcards', endpoint=StudyManager.Memorize.route_get_flashcards, methods=['GET']),
-    Route('/api/study/memorize/flashcards', endpoint=StudyManager.Memorize.route_add_flashcard, methods=['POST']),
-    Route('/api/study/memorize/flashcards', endpoint=StudyManager.Memorize.route_delete_flashcard, methods=['DELETE']),
-    Route('/api/study/memorize/check', endpoint=StudyManager.Memorize.route_check_answer, methods=['POST']),
-    Route('/api/study/thinking/projects', endpoint=StudyManager.Thinking.route_get_thinking_projects, methods=['GET']),
-    Route('/api/study/thinking/projects', endpoint=StudyManager.Thinking.route_add_thinking_project, methods=['POST']),
-    Route('/api/study/thinking/projects', endpoint=StudyManager.Thinking.route_delete_thinking_project, methods=['DELETE']),
-    Route('/api/study/thinking/all-knowledge', endpoint=StudyManager.Thinking.route_get_all_knowledge, methods=['GET']),
-    Route('/api/study/thinking/items', endpoint=StudyManager.Thinking.route_get_thinking_items, methods=['GET']),
-    Route('/api/study/thinking/items', endpoint=StudyManager.Thinking.route_add_thinking_item, methods=['POST']),
-    Route('/api/study/thinking/items', endpoint=StudyManager.Thinking.route_delete_thinking_item, methods=['DELETE']),
-    Route('/api/study/thinking/global', endpoint=StudyManager.Thinking.route_toggle_global, methods=['POST']),
+    Route('/api/study/projects', endpoint=StudyManager.route_get_projects, methods=['GET']),
+    Route('/api/study/projects/path', endpoint=StudyManager.route_get_project_path, methods=['GET']),
+    Route('/api/study/projects', endpoint=StudyManager.route_add_project, methods=['POST']),
+    Route('/api/study/projects', endpoint=StudyManager.route_delete_project, methods=['DELETE']),
+    Route('/api/study/problems', endpoint=StudyManager.route_get_problems, methods=['GET']),
+    Route('/api/study/problems', endpoint=StudyManager.route_add_problem, methods=['POST']),
+    Route('/api/study/problems', endpoint=StudyManager.route_update_problem, methods=['PUT']),
+    Route('/api/study/problems', endpoint=StudyManager.route_delete_problem, methods=['DELETE']),
+    Route('/api/study/columns', endpoint=StudyManager.route_get_columns, methods=['GET']),
+    Route('/api/study/columns', endpoint=StudyManager.route_add_column, methods=['POST']),
+    Route('/api/study/columns', endpoint=StudyManager.route_update_column, methods=['PUT']),
+    Route('/api/study/columns', endpoint=StudyManager.route_delete_column, methods=['DELETE']),
+    Route('/api/study/search', endpoint=StudyManager.route_search, methods=['GET']),
+    Route('/api/study/records', endpoint=StudyManager.route_get_records, methods=['GET']),
+    Route('/api/study/records/single', endpoint=StudyManager.route_get_record, methods=['GET']),
+    Route('/api/study/records', endpoint=StudyManager.route_add_record, methods=['POST']),
+    Route('/api/study/records', endpoint=StudyManager.route_update_record, methods=['PUT']),
+    Route('/api/study/records', endpoint=StudyManager.route_delete_record, methods=['DELETE']),
+    Route('/api/study/problem_cards', endpoint=StudyManager.route_get_problem_cards, methods=['GET']),
+    Route('/api/study/problem_cards', endpoint=StudyManager.route_add_problem_card, methods=['POST']),
+    Route('/api/study/problem_cards', endpoint=StudyManager.route_delete_problem_card, methods=['DELETE']),
     Route('/api/settings', endpoint=SettingsManager.route_get_settings, methods=['GET']),
     Route('/api/settings', endpoint=SettingsManager.route_save_settings, methods=['POST']),
     Route('/api/chat/sessions', endpoint=ChatbotManager.route_get_sessions, methods=['GET']),
@@ -816,6 +918,10 @@ routes = [
     Route('/api/chat/history', endpoint=ChatbotManager.route_get_history, methods=['GET']),
     Route('/api/chat', endpoint=ChatbotManager.route_chat, methods=['POST']),
     Route('/', endpoint=Blocker.homepage, methods=['GET']),
+    Route('/blocklist', endpoint=Blocker.blocklist, methods=['GET']),
+    Route('/tasks', endpoint=Blocker.tasks, methods=['GET']),
+    Route('/study', endpoint=Blocker.study, methods=['GET']),
+    Route('/chat', endpoint=Blocker.chat, methods=['GET']),
     Mount('/static', app=StaticFiles(directory=frontend_dir), name="static")
 ]
 
@@ -829,4 +935,4 @@ app = Starlette(debug=True, routes=routes, middleware=middleware)
 
 # 4. Run server with uvicorn
 if __name__ == '__main__':
-    uvicorn.run("app:app", host='127.0.0.1', port=8765, reload=True)
+    uvicorn.run("app:app", host='127.0.0.1', port=8765, reload=True, use_colors=False)
