@@ -712,6 +712,11 @@ function configureStudyMarked() {
 }
 
 function updatePreview(markdownText, previewEl) {
+    if (!markdownText || markdownText.trim() === '') {
+        previewEl.innerHTML = '<span style="color: var(--text-muted, #888); font-style: italic;">Double-click here to edit...</span>';
+        return;
+    }
+    
     if (!window.marked) {
         previewEl.innerHTML = markdownText;
         return;
@@ -727,7 +732,7 @@ function updatePreview(markdownText, previewEl) {
 
 function handleRoute() {
     const params = getQueryParams();
-    if (params.view === 'projects') {
+    if (params.view === 'projects' || !params.view) {
         renderProjectsView();
     } else if (params.view === 'project_details') {
         renderProjectDetailsView(params.id);
@@ -735,6 +740,8 @@ function handleRoute() {
         renderProblemView(params.id, params.projectId);
     } else if (params.view === 'record') {
         renderRecordView(params.id, params.projectId);
+    } else {
+        renderProjectsView();
     }
 }
 
@@ -814,16 +821,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('record-preview').style.display = 'block';
         }
     });
-    
-    document.getElementById('btn-save-record').addEventListener('click', async () => {
-        const params = getQueryParams();
-        const title = document.getElementById('record-title').value;
-        const body = document.getElementById('record-editor').value;
-        if (params.id) {
-            await apiCall('/api/study/records', 'PUT', { id: params.id, title, body });
-            alert("Saved!");
-        }
-    });
+
 
     window.addEventListener('popstate', handleRoute);
     
