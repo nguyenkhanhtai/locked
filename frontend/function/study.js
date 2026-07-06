@@ -605,7 +605,7 @@ async function renderRecordView(recordId, projectId) {
     editor.value = '';
     
     // Set default mode to View
-    isEditMode = false;
+    window.isRecordEditMode = false;
     editor.style.display = 'none';
     preview.style.display = 'block';
     
@@ -624,17 +624,19 @@ async function renderRecordView(recordId, projectId) {
     breadcrumbs.push({ label: recordTitle, params: { view: 'record', id: recordId, projectId: projectId } });
     updateBreadcrumbs(breadcrumbs);
     
+    const saveRecord = async () => {
+        await apiCall('/api/study/records', 'PUT', {
+            id: recordId,
+            title: titleInput.value.trim(),
+            body: editor.value.trim()
+        });
+    };
+
     // Auto save on type
     const handleInput = () => {
         if (recordSaveTimeout) clearTimeout(recordSaveTimeout);
         updatePreview(editor.value, preview);
-        recordSaveTimeout = setTimeout(async () => {
-            await apiCall('/api/study/records', 'PUT', {
-                id: recordId,
-                title: titleInput.value,
-                body: editor.value
-            });
-        }, 1000); // 1 second debounce
+        recordSaveTimeout = setTimeout(saveRecord, 1000); // 1 second debounce
         
         // Mention logic check
         const text = editor.value;
@@ -657,6 +659,26 @@ async function renderRecordView(recordId, projectId) {
     editor.oninput = handleInput;
     editor.onkeydown = handleEditorKeydown;
     
+    document.getElementById('btn-toggle-preview').onclick = () => {
+        window.isRecordEditMode = !window.isRecordEditMode;
+        if (window.isRecordEditMode) {
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        } else {
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+            saveRecord();
+        }
+    };
+    
+    preview.ondblclick = () => {
+        if (!window.isRecordEditMode) {
+            window.isRecordEditMode = true;
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        }
+    };
+
     // Close dropdown when clicking outside
     document.addEventListener('mousedown', (e) => {
         if (mentionMode && e.target !== editor && !e.target.closest('#mention-dropdown')) {
