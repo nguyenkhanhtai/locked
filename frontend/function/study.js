@@ -166,7 +166,7 @@ async function apiCall(url, method = 'GET', body = null) {
 async function renderProjectsView() {
     hideAllViews();
     document.getElementById('view-projects').style.display = 'flex';
-    updateBreadcrumbs([{ label: 'Projects', params: { view: 'projects', id: null } }]);
+    updateBreadcrumbs([{ label: 'Study', params: { view: 'projects', id: null } }]);
     
     const list = document.getElementById('project-list');
     list.innerHTML = 'Loading...';
@@ -214,10 +214,10 @@ async function renderProjectDetailsView(projectId) {
     problemList.innerHTML = 'Loading...';
     recordList.innerHTML = 'Loading...';
     
-    updateBreadcrumbs([
-        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
-        { label: 'Project Details', params: { view: 'project_details', id: projectId } }
-    ]);
+    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    updateBreadcrumbs(breadcrumbs);
     
     // Fetch Sub-projects
     const subprojectsRes = await apiCall(`/api/study/projects?parent_project_id=${projectId}`);
@@ -330,11 +330,11 @@ async function renderProblemView(problemId, projectId) {
         }
     }
 
-    updateBreadcrumbs([
-        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
-        { label: 'Project', params: { view: 'project_details', id: projectId } },
-        { label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } }
-    ]);
+    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } });
+    updateBreadcrumbs(breadcrumbs);
 
     
     const res = await apiCall(`/api/study/columns?problem_id=${problemId}`);
@@ -540,10 +540,7 @@ async function renderRecordView(recordId, projectId) {
     hideAllViews();
     document.getElementById('view-record').style.display = 'flex';
     
-    updateBreadcrumbs([
-        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
-        { label: 'Record Editor', params: { view: 'record', id: recordId, projectId: projectId } }
-    ]);
+    // Breadcrumbs updated after fetch
     
     const titleInput = document.getElementById('record-title');
     const editor = document.getElementById('record-editor');
@@ -558,11 +555,19 @@ async function renderRecordView(recordId, projectId) {
     preview.style.display = 'block';
     
     const res = await apiCall(`/api/study/records/single?id=${recordId}`);
+    let recordTitle = "Record Editor";
     if (res.data) {
+        recordTitle = res.data.title;
         titleInput.value = res.data.title;
         editor.value = res.data.body || '';
         updatePreview(editor.value, preview);
     }
+    
+    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    breadcrumbs.push({ label: recordTitle, params: { view: 'record', id: recordId, projectId: projectId } });
+    updateBreadcrumbs(breadcrumbs);
     
     // Auto save on type
     const handleInput = () => {
