@@ -10,23 +10,6 @@
     </div>
     
     <div id="study-content-area" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
-        <!-- PROBLEM VIEW (KANBAN) -->
-        <div id="view-problem" class="study-view" style="display: none; height: 100%; flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0;">
-                <input type="text" id="problem-title" style="font-size: 20px; font-weight: bold; border: none; background: transparent; color: var(--text); flex: 1; outline: none; border-bottom: 1px solid transparent; padding: 5px;" placeholder="Problem Title">
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn outline" id="btn-toggle-problem-preview">Toggle Edit Mode</button>
-                    <button class="btn primary" id="btn-create-column">Add Column</button>
-                </div>
-            </div>
-            <div id="problem-desc-container" style="display: flex; gap: 15px; margin-bottom: 15px; height: 200px; flex-shrink: 0;">
-                <textarea id="problem-description-editor" style="flex: 1; resize: none; border-radius: 8px; border: 1px solid var(--border); padding: 15px; font-family: monospace; font-size: 14px; outline: none; line-height: 1.6; display: none;" placeholder="Write problem description here... Type @ to mention."></textarea>
-                <div id="problem-description-preview" class="content-md" style="flex: 1; border-radius: 8px; border: 1px solid var(--border); padding: 15px; background: var(--surface); overflow-y: auto; display: block; cursor: text;"></div>
-            </div>
-            <div id="problem-kanban" style="display: grid; grid-auto-columns: minmax(300px, 1fr); grid-auto-flow: column; gap: 20px; overflow-x: auto; flex: 1; padding-bottom: 10px;">
-                <!-- Columns go here -->
-            </div>
-        </div>
 
         <!-- PROJECTS VIEW -->
         <div id="view-projects" class="study-view" style="display: none; height: 100%; flex-direction: column;">
