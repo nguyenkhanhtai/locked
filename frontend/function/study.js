@@ -312,21 +312,24 @@ async function renderProblemView(problemId, projectId) {
     const kanban = document.getElementById('problem-kanban');
     kanban.innerHTML = 'Loading columns...';
     
-    // Fetch Problem details to show description
     const probRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
     let problemTitle = "Problem Kanban";
+    const titleInput = document.getElementById('problem-title');
+    const editor = document.getElementById('problem-description-editor');
+    const preview = document.getElementById('problem-description-preview');
+    
+    // Default mode: View
+    window.isProblemEditMode = false;
+    editor.style.display = 'none';
+    preview.style.display = 'block';
+
     if (probRes.data) {
         const p = probRes.data.find(x => String(x.id) === String(problemId));
         if (p) {
             problemTitle = p.title;
-            const descEl = document.getElementById('problem-description');
-            if (p.description) {
-                descEl.textContent = p.description;
-                document.getElementById('problem-desc-container').style.display = 'block';
-            } else {
-                document.getElementById('problem-desc-container').style.display = 'none';
-            }
-            document.getElementById('problem-title').textContent = p.title;
+            titleInput.value = p.title;
+            editor.value = p.description || '';
+            updatePreview(editor.value, preview);
         }
     }
 
@@ -336,6 +339,58 @@ async function renderProblemView(problemId, projectId) {
     breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } });
     updateBreadcrumbs(breadcrumbs);
 
+    let problemSaveTimeout = null;
+    const saveProblem = async () => {
+        await apiCall('/api/study/problems', 'PUT', {
+            id: problemId,
+            title: titleInput.value.trim(),
+            description: editor.value.trim()
+        });
+    };
+
+    const handleInput = () => {
+        if (problemSaveTimeout) clearTimeout(problemSaveTimeout);
+        updatePreview(editor.value, preview);
+        problemSaveTimeout = setTimeout(saveProblem, 1000);
+        
+        // Mention logic check
+        const text = editor.value;
+        const cursor = editor.selectionStart;
+        const beforeCursor = text.substring(0, cursor);
+        const match = beforeCursor.match(/(?:^|\s)@([^@\n]*)$/);
+        if (match) {
+            mentionMode = true;
+            mentionStartIndex = cursor - match[1].length - 1;
+            mentionQuery = match[1];
+            renderMentionDropdown(editor);
+        } else {
+            closeMentionDropdown();
+        }
+    };
+
+    titleInput.oninput = handleInput;
+    editor.oninput = handleInput;
+    editor.onkeydown = handleEditorKeydown;
+    
+    document.getElementById('btn-toggle-problem-preview').onclick = () => {
+        window.isProblemEditMode = !window.isProblemEditMode;
+        if (window.isProblemEditMode) {
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        } else {
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+            saveProblem();
+        }
+    };
+    
+    preview.ondblclick = () => {
+        if (!window.isProblemEditMode) {
+            window.isProblemEditMode = true;
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        }
+    };
     
     const res = await apiCall(`/api/study/columns?problem_id=${problemId}`);
     kanban.innerHTML = '';
