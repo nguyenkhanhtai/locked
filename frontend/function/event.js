@@ -441,14 +441,32 @@ document.addEventListener("DOMContentLoaded", () => {
                 rowClass = "is-overdue";
             }
 
-            const shortDesc = t.description ? (t.description.length > 20 ? t.description.substring(0, 20) + "..." : t.description) : "No description";
+            let processedDesc = t.description || "No description";
+            let pills = "";
+            
+            // Extract study URLs to display as pills
+            const studyRegex = /(?:https?:\/\/[^\s]+)?\/study\?view=(record|problem)&id=(\d+)(?:&projectId=(\d+))?/g;
+            let match;
+            while ((match = studyRegex.exec(processedDesc)) !== null) {
+                const view = match[1];
+                const id = match[2];
+                const projectId = match[3];
+                const icon = view === 'record' ? '📚' : '📋';
+                const label = view === 'record' ? `Record #${id}` : `Problem #${id}`;
+                const url = `/study?view=${view}&id=${id}${projectId ? '&projectId=' + projectId : ''}`;
+                pills += `<a href="${url}" onclick="event.stopPropagation()" style="background: var(--primary-light, #e0f7fa); color: var(--primary); padding: 2px 6px; border-radius: 12px; text-decoration: none; font-size: 11px; font-weight: bold; border: 1px solid var(--primary); display: inline-flex; align-items: center; margin-right: 5px; margin-top: 5px;">${icon} ${label}</a>`;
+            }
+            
+            // Strip URLs for the short description text to prevent breaking pills
+            let textDesc = processedDesc.replace(/https?:\/\/[^\s]+/g, '').replace(/\/study\?view=[^\s]+/g, '').trim();
+            const shortDesc = textDesc ? (textDesc.length > 30 ? textDesc.substring(0, 30) + "..." : textDesc) : (pills ? "" : "No description");
 
             taskList.innerHTML += `
-                <article class="task-row ${rowClass}" onclick="editTask(${t.id})" style="cursor: pointer;" title="Nhấn để chỉnh sửa">
+                <article class="task-row ${rowClass} hover-parent" onclick="editTask(${t.id})" style="cursor: pointer;" title="Nhấn để chỉnh sửa">
                     <div class="task-col task-main">
                         <div class="col-header">Task</div>
                         <div class="task-title" title="${t.name}">${t.name}</div>
-                        <div class="task-desc" title="${t.description || ''}">${shortDesc}</div>
+                        <div class="task-desc" title="${t.description || ''}">${shortDesc} ${pills}</div>
                     </div>
                     <div class="task-col task-priority">
                         <div class="col-header">Priority</div>
@@ -464,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class="task-actions">
                         <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleTaskDone(${t.id}, this.checked)" ${doneChecked} style="transform: scale(1.3); cursor: pointer;">
-                        <button class="btn danger" onclick="deleteTaskDirect(event, ${t.id})">Delete</button>
+                        <button class="btn-del-badge hover-only" onclick="event.stopPropagation(); deleteTaskDirect(event, ${t.id})" title="Delete">✖</button>
                     </div>
                 </article>
             `;

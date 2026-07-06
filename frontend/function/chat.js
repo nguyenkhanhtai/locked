@@ -188,14 +188,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     syncChatModelDisplay();
 
-    // Khởi tạo marked.js với cấu hình GFM (hỗ trợ table) và KaTeX support
-    if (typeof marked !== 'undefined') {
-        marked.use({ gfm: true, breaks: true });
-        if (typeof markedKatex !== 'undefined') {
-            marked.use(markedKatex({ throwOnError: false }));
-        }
-    }
-
+    // Ensure core marked config is applied first
+    if (typeof window.initMarked === 'function') window.initMarked();
     const escapeHtml = (value) => value
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
@@ -373,6 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         sessions.forEach((session) => {
             const item = document.createElement("div");
+            item.classList.add('chat-session-item', 'hover-parent');
             item.setAttribute("data-session-id", String(session.id));
             item.style.padding = "12px";
             item.style.border = "1px solid var(--border)";
@@ -388,20 +383,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     <strong style="font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(session.title)}</strong>
                     <span style="font-size: 11px; color: #777;">${session.message_count || 0} messages • ${session.tokens_used || 0} tokens</span>
                 </div>
-                <button class="btn-delete-session-item" style="background: transparent; border: none; color: #dc3545; cursor: pointer; padding: 4px; display: none;" title="Delete chat">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                </button>
+                <button class="btn-delete-session-item btn-del-badge hover-only" title="Delete chat">✖</button>
             `;
             
-            item.addEventListener("mouseenter", () => {
-                const btn = item.querySelector('.btn-delete-session-item');
-                if (btn) btn.style.display = 'block';
-            });
-            item.addEventListener("mouseleave", () => {
-                const btn = item.querySelector('.btn-delete-session-item');
-                if (btn) btn.style.display = 'none';
-            });
-
             item.addEventListener("click", async (e) => {
                 if (e.target.closest('.btn-delete-session-item')) {
                     if (confirm("Are you sure you want to delete this chat session?")) {

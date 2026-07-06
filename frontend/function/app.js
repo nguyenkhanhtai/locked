@@ -8,46 +8,32 @@ document.addEventListener("DOMContentLoaded", () => {
     // Element cho Cài đặt chung
     const btnSettings = document.getElementById("btn-settings");
 
-    // 1. Đổi Tab Điều Hướng (Nav Bar)
-    navItems.forEach(item => {
-        item.addEventListener("click", () => {
-            try {
-                navItems.forEach(n => n.classList.remove("active"));
-                pages.forEach(p => p.classList.remove("active"));
-                item.classList.add("active");
-                const targetEl = document.getElementById(item.dataset.target);
-                if (targetEl) targetEl.classList.add("active");
+    // 1. Highlight the current active tab based on URL
+    const currentPath = window.location.pathname;
+    let activeTarget = "welcome";
+    if (currentPath.includes("blocklist")) activeTarget = "blocklist";
+    else if (currentPath.includes("tasks")) activeTarget = "tasks";
+    else if (currentPath.includes("study")) activeTarget = "study";
+    else if (currentPath.includes("chat")) activeTarget = "chat";
 
-                // Lưu trạng thái tab hiện tại vào LocalStorage
-                localStorage.setItem("locked_active_main_tab", item.dataset.target);
-
-                // Hide AI button if not on study page
-                const btnToggleAiGlobal = document.getElementById('btn-toggle-ai-assistant');
-                if (btnToggleAiGlobal && item.dataset.target !== 'study') {
-                    btnToggleAiGlobal.style.display = 'none';
-                }
-
-                // Tự động tải lại danh sách task mỗi khi người dùng chuyển sang tab Task List
-                if (item.dataset.target === "tasks" && typeof window.loadTasks === "function") {
-                    window.loadTasks();
-                }
-            } catch (err) {
-                console.error("Navigation error:", err);
-            }
-        });
+    const navLinkItems = document.querySelectorAll(".nav-link-item");
+    navLinkItems.forEach(link => {
+        if (link.dataset.target === activeTarget) {
+            link.parentElement.classList.add("active");
+        } else {
+            link.parentElement.classList.remove("active");
+        }
     });
 
-    // Khôi phục trạng thái tab chính sau khi tải lại trang
-    try {
-        const savedMainTab = localStorage.getItem("locked_active_main_tab");
-        if (savedMainTab) {
-            const targetNav = Array.from(navItems).find(n => n.dataset.target === savedMainTab);
-            if (targetNav && !targetNav.classList.contains("active")) {
-                targetNav.click();
-            }
-        }
-    } catch (err) {
-        console.error("Failed to restore main tab:", err);
+    // Handle specific page initializations that used to be in tab click handlers
+    if (activeTarget === "tasks" && typeof window.loadTasks === "function") {
+        window.loadTasks();
+    }
+    
+    // Hide AI button if not on study page
+    const btnToggleAiGlobal = document.getElementById('btn-toggle-ai-assistant');
+    if (btnToggleAiGlobal && activeTarget !== 'study') {
+        btnToggleAiGlobal.style.display = 'none';
     }
 
 
@@ -267,4 +253,16 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+    // Initialize Marked globally
+    window.initMarked = function() {
+        if (window.markedConfigured) return;
+        if (typeof marked !== 'undefined') {
+            marked.use({ gfm: true, breaks: true });
+            if (typeof markedKatex !== 'undefined') {
+                marked.use(markedKatex({ throwOnError: false }));
+            }
+            window.markedConfigured = true;
+        }
+    };
+    window.initMarked();
 });

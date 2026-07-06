@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <strong style="font-size:16px;">${b.url}</strong><br>
                     <span class="meta-time">${b.type} | ${timeStr}</span>
                 </div>
-                <button class="btn danger" onclick="deleteBlock('${b.url}', '${b.type === "Temporary" ? "temporary" : "permanent"}')">Unblock</button>
+                <button class="btn-del-badge hover-only" onclick="deleteBlock('${b.url}', '${b.type === "Temporary" ? "temporary" : "permanent"}')" title="Unblock">✖</button>
             `;
             blockList.appendChild(item);
         });
@@ -226,11 +226,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         data.forEach(url => {
             const item = document.createElement("div");
-            item.className = "list-item";
+            item.classList.add("hover-parent");
+            item.style.display = "flex";
+            item.style.justifyContent = "space-between";
+            item.style.alignItems = "center";
             item.style.padding = "5px 10px";
             item.innerHTML = `
                 <span style="font-size: 14px;">${url}</span>
-                <button class="btn danger" style="padding: 2px 8px; font-size: 12px;" onclick="deleteFocusUrl('${url}')">Xóa</button>
+                <button class="btn-del-badge hover-only" onclick="deleteFocusUrl('${url}')" title="Xóa">✖</button>
             `;
             container.appendChild(item);
         });
