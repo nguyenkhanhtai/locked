@@ -9,8 +9,8 @@ __pycache__/
 
 # Bỏ qua thư mục log và database cục bộ của bạn
 backend/logs/
-backend/user/log/
 backend/db/
+backend/user
 *.db
 *.sqlite3
 
