@@ -1,4 +1,4 @@
-{% extends "aux/base.html" %}
+{% extends "shared/base.html" %}
 
 {% block content %}
 <div id="study" class="page active" style="display: flex; flex-direction: column; height: 100%;">
@@ -10,6 +10,7 @@
     </div>
     
     <div id="study-content-area" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+
         <!-- PROJECTS VIEW -->
         <div id="view-projects" class="study-view" style="display: none; height: 100%; flex-direction: column;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -68,7 +69,6 @@
                 <input type="text" id="record-title" style="font-size: 20px; font-weight: bold; border: none; background: transparent; color: var(--text); flex: 1; outline: none; border-bottom: 1px solid transparent; padding: 5px;" placeholder="Record Title">
                 <div style="display: flex; gap: 10px;">
                     <button class="btn outline" id="btn-toggle-preview">Toggle Edit Mode</button>
-                    <button class="btn primary" id="btn-save-record">Save</button>
                 </div>
             </div>
             <div style="display: flex; gap: 15px; flex: 1; min-height: 0; position: relative;">

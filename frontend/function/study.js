@@ -166,7 +166,7 @@ async function apiCall(url, method = 'GET', body = null) {
 async function renderProjectsView() {
     hideAllViews();
     document.getElementById('view-projects').style.display = 'flex';
-    updateBreadcrumbs([{ label: 'Projects', params: { view: 'projects', id: null } }]);
+    updateBreadcrumbs([{ label: 'Study', params: { view: 'projects', id: null } }]);
     
     const list = document.getElementById('project-list');
     list.innerHTML = 'Loading...';
@@ -214,10 +214,10 @@ async function renderProjectDetailsView(projectId) {
     problemList.innerHTML = 'Loading...';
     recordList.innerHTML = 'Loading...';
     
-    updateBreadcrumbs([
-        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
-        { label: 'Project Details', params: { view: 'project_details', id: projectId } }
-    ]);
+    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    updateBreadcrumbs(breadcrumbs);
     
     // Fetch Sub-projects
     const subprojectsRes = await apiCall(`/api/study/projects?parent_project_id=${projectId}`);
@@ -312,30 +312,85 @@ async function renderProblemView(problemId, projectId) {
     const kanban = document.getElementById('problem-kanban');
     kanban.innerHTML = 'Loading columns...';
     
-    // Fetch Problem details to show description
     const probRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
     let problemTitle = "Problem Kanban";
+    const titleInput = document.getElementById('problem-title');
+    const editor = document.getElementById('problem-description-editor');
+    const preview = document.getElementById('problem-description-preview');
+    
+    // Default mode: View
+    window.isProblemEditMode = false;
+    editor.style.display = 'none';
+    preview.style.display = 'block';
+
     if (probRes.data) {
         const p = probRes.data.find(x => String(x.id) === String(problemId));
         if (p) {
             problemTitle = p.title;
-            const descEl = document.getElementById('problem-description');
-            if (p.description) {
-                descEl.textContent = p.description;
-                document.getElementById('problem-desc-container').style.display = 'block';
-            } else {
-                document.getElementById('problem-desc-container').style.display = 'none';
-            }
-            document.getElementById('problem-title').textContent = p.title;
+            titleInput.value = p.title;
+            editor.value = p.description || '';
+            updatePreview(editor.value, preview);
         }
     }
 
-    updateBreadcrumbs([
-        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
-        { label: 'Project', params: { view: 'project_details', id: projectId } },
-        { label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } }
-    ]);
+    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } });
+    updateBreadcrumbs(breadcrumbs);
 
+    let problemSaveTimeout = null;
+    const saveProblem = async () => {
+        await apiCall('/api/study/problems', 'PUT', {
+            id: problemId,
+            title: titleInput.value.trim(),
+            description: editor.value.trim()
+        });
+    };
+
+    const handleInput = () => {
+        if (problemSaveTimeout) clearTimeout(problemSaveTimeout);
+        updatePreview(editor.value, preview);
+        problemSaveTimeout = setTimeout(saveProblem, 1000);
+        
+        // Mention logic check
+        const text = editor.value;
+        const cursor = editor.selectionStart;
+        const beforeCursor = text.substring(0, cursor);
+        const match = beforeCursor.match(/(?:^|\s)@([^@\n]*)$/);
+        if (match) {
+            mentionMode = true;
+            mentionStartIndex = cursor - match[1].length - 1;
+            mentionQuery = match[1];
+            renderMentionDropdown(editor);
+        } else {
+            closeMentionDropdown();
+        }
+    };
+
+    titleInput.oninput = handleInput;
+    editor.oninput = handleInput;
+    editor.onkeydown = handleEditorKeydown;
+    
+    document.getElementById('btn-toggle-problem-preview').onclick = () => {
+        window.isProblemEditMode = !window.isProblemEditMode;
+        if (window.isProblemEditMode) {
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        } else {
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+            saveProblem();
+        }
+    };
+    
+    preview.ondblclick = () => {
+        if (!window.isProblemEditMode) {
+            window.isProblemEditMode = true;
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        }
+    };
     
     const res = await apiCall(`/api/study/columns?problem_id=${problemId}`);
     kanban.innerHTML = '';
@@ -540,10 +595,7 @@ async function renderRecordView(recordId, projectId) {
     hideAllViews();
     document.getElementById('view-record').style.display = 'flex';
     
-    updateBreadcrumbs([
-        { label: 'Projects', params: { view: 'projects', id: null, projectId: null } },
-        { label: 'Record Editor', params: { view: 'record', id: recordId, projectId: projectId } }
-    ]);
+    // Breadcrumbs updated after fetch
     
     const titleInput = document.getElementById('record-title');
     const editor = document.getElementById('record-editor');
@@ -553,28 +605,38 @@ async function renderRecordView(recordId, projectId) {
     editor.value = '';
     
     // Set default mode to View
-    isEditMode = false;
+    window.isRecordEditMode = false;
     editor.style.display = 'none';
     preview.style.display = 'block';
     
     const res = await apiCall(`/api/study/records/single?id=${recordId}`);
+    let recordTitle = "Record Editor";
     if (res.data) {
+        recordTitle = res.data.title;
         titleInput.value = res.data.title;
         editor.value = res.data.body || '';
         updatePreview(editor.value, preview);
     }
     
+    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    breadcrumbs.push({ label: recordTitle, params: { view: 'record', id: recordId, projectId: projectId } });
+    updateBreadcrumbs(breadcrumbs);
+    
+    const saveRecord = async () => {
+        await apiCall('/api/study/records', 'PUT', {
+            id: recordId,
+            title: titleInput.value.trim(),
+            body: editor.value.trim()
+        });
+    };
+
     // Auto save on type
     const handleInput = () => {
         if (recordSaveTimeout) clearTimeout(recordSaveTimeout);
         updatePreview(editor.value, preview);
-        recordSaveTimeout = setTimeout(async () => {
-            await apiCall('/api/study/records', 'PUT', {
-                id: recordId,
-                title: titleInput.value,
-                body: editor.value
-            });
-        }, 1000); // 1 second debounce
+        recordSaveTimeout = setTimeout(saveRecord, 1000); // 1 second debounce
         
         // Mention logic check
         const text = editor.value;
@@ -597,6 +659,26 @@ async function renderRecordView(recordId, projectId) {
     editor.oninput = handleInput;
     editor.onkeydown = handleEditorKeydown;
     
+    document.getElementById('btn-toggle-preview').onclick = () => {
+        window.isRecordEditMode = !window.isRecordEditMode;
+        if (window.isRecordEditMode) {
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        } else {
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+            saveRecord();
+        }
+    };
+    
+    preview.ondblclick = () => {
+        if (!window.isRecordEditMode) {
+            window.isRecordEditMode = true;
+            editor.style.display = 'block';
+            preview.style.display = 'block';
+        }
+    };
+
     // Close dropdown when clicking outside
     document.addEventListener('mousedown', (e) => {
         if (mentionMode && e.target !== editor && !e.target.closest('#mention-dropdown')) {
@@ -630,6 +712,11 @@ function configureStudyMarked() {
 }
 
 function updatePreview(markdownText, previewEl) {
+    if (!markdownText || markdownText.trim() === '') {
+        previewEl.innerHTML = '<span style="color: var(--text-muted, #888); font-style: italic;">Double-click here to edit...</span>';
+        return;
+    }
+    
     if (!window.marked) {
         previewEl.innerHTML = markdownText;
         return;
@@ -645,7 +732,7 @@ function updatePreview(markdownText, previewEl) {
 
 function handleRoute() {
     const params = getQueryParams();
-    if (params.view === 'projects') {
+    if (params.view === 'projects' || !params.view) {
         renderProjectsView();
     } else if (params.view === 'project_details') {
         renderProjectDetailsView(params.id);
@@ -653,6 +740,8 @@ function handleRoute() {
         renderProblemView(params.id, params.projectId);
     } else if (params.view === 'record') {
         renderRecordView(params.id, params.projectId);
+    } else {
+        renderProjectsView();
     }
 }
 
@@ -732,16 +821,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('record-preview').style.display = 'block';
         }
     });
-    
-    document.getElementById('btn-save-record').addEventListener('click', async () => {
-        const params = getQueryParams();
-        const title = document.getElementById('record-title').value;
-        const body = document.getElementById('record-editor').value;
-        if (params.id) {
-            await apiCall('/api/study/records', 'PUT', { id: params.id, title, body });
-            alert("Saved!");
-        }
-    });
+
 
     window.addEventListener('popstate', handleRoute);
     

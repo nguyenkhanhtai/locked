@@ -1,0 +1,27 @@
+# Bỏ qua thư mục môi trường ảo Python
+.venv/
+venv/
+
+# Bỏ qua các file cache và bytecode của Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Bỏ qua thư mục log và database cục bộ của bạn
+backend/logs/
+backend/db/
+backend/user
+backend/log/
+backend/backups/
+backend/user/
+*.db
+*.sqlite3
+*.json
+*.log
+
+# Bỏ qua file cấu hình môi trường chứa biến bí mật (nếu có)
+.env
+
+# Bỏ qua các file cấu hình của hệ điều hành
+.DS_Store
+Thumbs.db
