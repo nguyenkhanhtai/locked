@@ -11,8 +11,13 @@ __pycache__/
 backend/logs/
 backend/db/
 backend/user
+backend/log/
+backend/backups/
+backend/user/
 *.db
 *.sqlite3
+*.json
+*.log
 
 # Bỏ qua file cấu hình môi trường chứa biến bí mật (nếu có)
 .env
