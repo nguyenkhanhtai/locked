@@ -663,6 +663,13 @@ async function renderRecordView(recordId, projectId, problemId) {
         titleInput.value = res.data.title;
         editor.value = res.data.body || '';
         updatePreview(editor.value, preview);
+        
+        if (!problemId && res.data.problem_id) {
+            problemId = res.data.problem_id;
+            const url = new URL(window.location);
+            url.searchParams.set('problemId', problemId);
+            window.history.replaceState({}, '', url);
+        }
     }
 
     let problemTitle = null;
