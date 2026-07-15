@@ -1,5 +1,50 @@
 // Utility to parse query params
-// ==========================================
+async function setupImagePaste(editor, previewElement) {
+    editor.addEventListener('paste', async (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                const blob = item.getAsFile();
+                
+                // Show uploading indicator
+                const startPos = editor.selectionStart;
+                const endPos = editor.selectionEnd;
+                const placeholder = `![Uploading image...]()\n`;
+                editor.value = editor.value.substring(0, startPos) + placeholder + editor.value.substring(endPos);
+                editor.selectionStart = editor.selectionEnd = startPos + placeholder.length;
+                if (previewElement) updatePreview(editor.value, previewElement);
+
+                const formData = new FormData();
+                formData.append('image', blob);
+
+                try {
+                    const response = await fetch('/api/upload/image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const res = await response.json();
+                    
+                    if (res.status.includes('200')) {
+                        const newText = `![Image](${res.url})\n`;
+                        editor.value = editor.value.replace(placeholder, newText);
+                        // Trigger input event to save if needed
+                        editor.dispatchEvent(new Event('input', { bubbles: true }));
+                    } else {
+                        editor.value = editor.value.replace(placeholder, `\n<!-- Upload failed: ${res.message} -->\n`);
+                    }
+                } catch (err) {
+                    console.error('Upload error:', err);
+                    editor.value = editor.value.replace(placeholder, `\n<!-- Upload error -->\n`);
+                }
+                if (previewElement) updatePreview(editor.value, previewElement);
+                e.preventDefault();
+                break;
+            }
+        }
+    });
+}
+
 // Custom Prompts
 // ==========================================
 function promptStudyInput(modalTitle, inputLabel, showDesc, defaultTitle = '') {
@@ -372,6 +417,7 @@ async function renderProblemView(problemId, projectId) {
     titleInput.oninput = handleInput;
     editor.oninput = handleInput;
     editor.onkeydown = handleEditorKeydown;
+    setupImagePaste(editor, preview);
     
     document.getElementById('btn-toggle-problem-preview').onclick = () => {
         window.isProblemEditMode = !window.isProblemEditMode;
@@ -673,6 +719,7 @@ async function renderRecordView(recordId, projectId, problemId) {
     titleInput.oninput = handleInput;
     editor.oninput = handleInput;
     editor.onkeydown = handleEditorKeydown;
+    setupImagePaste(editor, preview);
     
     document.getElementById('btn-toggle-preview').onclick = () => {
         window.isRecordEditMode = !window.isRecordEditMode;
