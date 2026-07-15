@@ -187,7 +187,7 @@ class Observer:
                             current_url = current_url.lower()
                             
                             # Bỏ qua nếu đang ở trang thông báo bị chặn để tránh vòng lặp vô hạn
-                            if "127.0.0.1:8765/static/page/aux/blocked.html" not in current_url:
+                            if "127.0.0.1:8765/static/page/shared/blocked.html" not in current_url:
                                 block_info = self.db.check_blocked_url(current_url)
 
                                 if block_info.get("is_blocked"):
@@ -195,7 +195,7 @@ class Observer:
                                     print("--> Redirecting to the notification page...")
                                     
                                     # Tạo URL mới
-                                    redirect_url = f"http://127.0.0.1:8765/static/page/aux/blocked.html?url={urllib.parse.quote(block_info['domain'])}&unlock={block_info['unlock_at']}&mode={block_info['type']}"
+                                    redirect_url = f"http://127.0.0.1:8765/static/page/shared/blocked.html?url={urllib.parse.quote(block_info['domain'])}&unlock={block_info['unlock_at']}&mode={block_info['type']}"
                                     
                                     # Chọn thanh địa chỉ, dán URL mới và nhấn Enter
                                     auto.SetClipboardText(redirect_url)
