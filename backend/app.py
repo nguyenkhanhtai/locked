@@ -455,7 +455,13 @@ class StudyManager:
         data = study_db.get_study_record(record_id)
         if not data:
             return JSONResponse({"status": "404 <Not Found>", "message": "Record not found"}, status_code=404)
-        return JSONResponse({"status": "200 <OK>", "data": serialize_to_dict(data)})
+            
+        data_dict = serialize_to_dict(data)
+        problem_id = study_db.get_problem_id_for_record(data.id)
+        if problem_id:
+            data_dict["problem_id"] = problem_id
+            
+        return JSONResponse({"status": "200 <OK>", "data": data_dict})
 
     @staticmethod
     @api_error_handler

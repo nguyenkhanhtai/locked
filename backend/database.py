@@ -945,6 +945,24 @@ class StudyDatabase:
             db_logger.error(f"Error getting record {record_id}: {e}")
             return None
 
+    def get_problem_id_for_record(self, record_id):
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT c.problem_id 
+                    FROM study_problem_cards card
+                    JOIN study_problem_columns c ON card.column_id = c.id
+                    WHERE card.record_id = ?
+                """, (record_id,))
+                row = cursor.fetchone()
+                if row:
+                    return row[0]
+            return None
+        except Exception as e:
+            db_logger.error(f"Error getting problem_id for record {record_id}: {e}")
+            return None
+
     def update_study_record(self, record_id, title, body):
         try:
             with self._get_connection() as conn:
