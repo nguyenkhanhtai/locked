@@ -871,12 +871,38 @@ class SettingsManager:
             json.dump(data, f, ensure_ascii=False, indent=4)
         return JSONResponse({"status": "200 <OK>", "message": "Settings saved"})
 
+class UploadManager:
+    @staticmethod
+    @api_error_handler
+    async def route_upload_image(request):
+        form = await request.form()
+        image = form.get("image")
+        if not image:
+            return JSONResponse({"status": "400 <Bad Request>", "message": "No image provided"}, status_code=400)
+            
+        import time
+        import re
+        safe_filename = re.sub(r'[^a-zA-Z0-9_.-]', '_', image.filename)
+        filename = f"{int(time.time())}_{safe_filename}"
+        uploads_dir = os.path.join(frontend_dir, "material", "uploads")
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+        file_path = os.path.join(uploads_dir, filename)
+        content = await image.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        return JSONResponse({
+            "status": "200 <OK>", 
+            "url": f"/static/material/uploads/{filename}"
+        })
 
 # 2. API Routing
 frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
 os.makedirs(frontend_dir, exist_ok=True)
 
 routes = [
+    Route('/api/upload/image', endpoint=UploadManager.route_upload_image, methods=['POST']),
     Route('/api/block', endpoint=Blocker.route_add_block, methods=['POST']),
     Route('/api/block', endpoint=Blocker.route_delete_block, methods=['DELETE']),
     Route('/api/blocks', endpoint=Blocker.route_get_blocks, methods=['GET']),
