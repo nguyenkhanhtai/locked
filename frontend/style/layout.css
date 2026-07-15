@@ -4,7 +4,8 @@
 .sidebar { width: 250px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; }
 .logo { font-size: 24px; font-weight: bold; color: var(--primary); margin-bottom: 40px; }
 .nav-links { list-style: none; flex: 1; }
-.nav-links li { padding: 12px 15px; margin-bottom: 10px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: 500;}
+.nav-links li { margin-bottom: 10px; border-radius: 8px; transition: 0.3s; font-weight: 500;}
+.nav-links li a { display: block; padding: 12px 15px; text-decoration: none; color: inherit; border-radius: inherit; }
 .nav-links li:hover { background: #f0f0f0; }
 .nav-links li.active { background: var(--primary); color: #fff; }
 .settings { margin-top: auto; border-top: 1px solid var(--border); padding-top: 20px; }
