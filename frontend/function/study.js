@@ -94,7 +94,8 @@ function getQueryParams() {
     return {
         view: params.get('view') || 'projects',
         id: params.get('id'),
-        projectId: params.get('projectId') // for breadcrumbs
+        projectId: params.get('projectId'), // for breadcrumbs
+        problemId: params.get('problemId')
     };
 }
 
@@ -166,7 +167,7 @@ async function apiCall(url, method = 'GET', body = null) {
 async function renderProjectsView() {
     hideAllViews();
     document.getElementById('view-projects').style.display = 'flex';
-    updateBreadcrumbs([{ label: 'Study', params: { view: 'projects', id: null } }]);
+    updateBreadcrumbs([{ label: 'Study', params: { view: 'projects', id: null, projectId: null, problemId: null } }]);
     
     const list = document.getElementById('project-list');
     list.innerHTML = 'Loading...';
@@ -215,8 +216,8 @@ async function renderProjectDetailsView(projectId) {
     recordList.innerHTML = 'Loading...';
     
     const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
-    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
-    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id, problemId: null } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null, projectId: null, problemId: null } });
     updateBreadcrumbs(breadcrumbs);
     
     // Fetch Sub-projects
@@ -296,7 +297,7 @@ async function renderProjectDetailsView(projectId) {
                 </div>
             `;
             div.addEventListener('click', () => {
-                updateUrl({ view: 'record', id: r.id, projectId: projectId });
+                updateUrl({ view: 'record', id: r.id, projectId: projectId, problemId: null });
             });
             recordList.appendChild(div);
         });
@@ -334,9 +335,9 @@ async function renderProblemView(problemId, projectId) {
     }
 
     const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
-    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
-    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
-    breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } });
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id, problemId: null } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null, projectId: null, problemId: null } });
+    breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId, problemId: null } });
     updateBreadcrumbs(breadcrumbs);
 
     let problemSaveTimeout = null;
@@ -433,7 +434,7 @@ async function renderProblemView(problemId, projectId) {
                         <div style="font-size: 13px; font-weight: bold;">${card.record_title}</div>
                     `;
                     cardDiv.addEventListener('click', () => {
-                        updateUrl({ view: 'record', id: card.record_id, projectId: projectId });
+                        updateUrl({ view: 'record', id: card.record_id, projectId: projectId, problemId: problemId });
                     });
                     cardsContainer.appendChild(cardDiv);
                 });
@@ -591,7 +592,7 @@ function handleEditorKeydown(e) {
 // Global typing timeout
 let recordSaveTimeout = null;
 
-async function renderRecordView(recordId, projectId) {
+async function renderRecordView(recordId, projectId, problemId) {
     hideAllViews();
     document.getElementById('view-record').style.display = 'flex';
     
@@ -617,11 +618,25 @@ async function renderRecordView(recordId, projectId) {
         editor.value = res.data.body || '';
         updatePreview(editor.value, preview);
     }
+
+    let problemTitle = null;
+    if (problemId) {
+        const probRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
+        if (probRes.data) {
+            const p = probRes.data.find(x => String(x.id) === String(problemId));
+            if (p) problemTitle = p.title;
+        }
+    }
     
     const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
-    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
-    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null } });
-    breadcrumbs.push({ label: recordTitle, params: { view: 'record', id: recordId, projectId: projectId } });
+    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id, problemId: null } })) : [];
+    breadcrumbs.unshift({ label: 'Study', params: { view: 'projects', id: null, projectId: null, problemId: null } });
+    
+    if (problemId && problemTitle) {
+        breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId, problemId: null } });
+    }
+    
+    breadcrumbs.push({ label: recordTitle, params: { view: 'record', id: recordId, projectId: projectId, problemId: problemId } });
     updateBreadcrumbs(breadcrumbs);
     
     const saveRecord = async () => {
@@ -739,7 +754,7 @@ function handleRoute() {
     } else if (params.view === 'problem') {
         renderProblemView(params.id, params.projectId);
     } else if (params.view === 'record') {
-        renderRecordView(params.id, params.projectId);
+        renderRecordView(params.id, params.projectId, params.problemId);
     } else {
         renderProjectsView();
     }
