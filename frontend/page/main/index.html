@@ -2,111 +2,105 @@
 
 {% block content %}
 <div id="welcome" class="page active">
-                    <div style="text-align: center; padding: 70px 20px; background: linear-gradient(135deg, var(--primary), #0056b3); border-radius: 24px; color: #fff; margin-bottom: 45px; box-shadow: 0 12px 35px rgba(0,123,255,0.25);">
-                        <h1 style="font-size: 56px; font-weight: 900; margin-bottom: 15px; letter-spacing: -1.5px;">LOCKED - DSA</h1>
-                        <p style="font-size: 24px; opacity: 0.95; font-weight: 500;">Study Assisting Partner</p>
-                    </div>
+    <!-- Modern Hero Section -->
+    <div style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border-radius: var(--radius-lg); padding: 48px 40px; color: #ffffff; margin-bottom: 36px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;">
+        <div style="position: absolute; right: -20px; top: -20px; width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%); border-radius: 50%;"></div>
+        <div style="position: relative; z-index: 1; max-width: 700px;">
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; margin-bottom: 16px; backdrop-filter: blur(8px);">
+                <span>🚀</span> Study Toolkit v0.2.0 • Linux & Cross-Platform
+            </div>
+            <h1 style="font-size: 38px; font-weight: 800; line-height: 1.2; margin-bottom: 12px; letter-spacing: -1px;">
+                Focus, Organize & Master Your Studies
+            </h1>
+            <p style="font-size: 16px; opacity: 0.9; line-height: 1.6; margin-bottom: 24px;">
+                An integrated local study environment built for Data Structures, Algorithms, and course projects. Manage your deadlines with algorithmic scheduling and structure your knowledge in markdown.
+            </p>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <a href="/tasks" class="btn" style="background: #ffffff; color: var(--primary); font-weight: 700; padding: 10px 20px; font-size: 14px; box-shadow: var(--shadow-md);">
+                    <span>✅ Open Tasks</span>
+                </a>
+                <a href="/study" class="btn outline" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); color: #ffffff; font-weight: 700; padding: 10px 20px; font-size: 14px;">
+                    <span>📚 Study Workspace</span>
+                </a>
+            </div>
+        </div>
+    </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
-                        <!-- Feature 1 -->
-                        <div class="block-list-container welcome-card" 
-                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
-                            onclick="window.location.href='/blocklist'">
-                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Block</h3>
-                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
-                                Chặn websites gây sao nhãn.
-                            </p>
-                        </div>
+    <!-- Core Modules Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 36px;">
+        <!-- Module 1: Tasks -->
+        <div class="list-item" style="flex-direction: column; align-items: flex-start; padding: 28px; cursor: pointer; border-radius: var(--radius-lg);" onclick="window.location.href='/tasks'">
+            <div style="width: 48px; height: 48px; border-radius: var(--radius); background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px;">
+                📅
+            </div>
+            <h3 style="font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 8px;">
+                Task & Deadline Management
+            </h3>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
+                Track assignments, projects, and deadlines. Filter by custom labels and priorities (1 to 5). Features an interactive <strong>Monthly Calendar & Gantt timeline</strong> powered by Min-Heap Interval Partitioning.
+            </p>
+            <span style="font-size: 13px; font-weight: 700; color: var(--primary); display: inline-flex; align-items: center; gap: 6px;">
+                View Tasks & Schedule →
+            </span>
+        </div>
 
-                        <!-- Feature 2 -->
-                        <div class="block-list-container welcome-card" 
-                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
-                            onclick="window.location.href='/tasks'">
-                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Task</h3>
-                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
-                                Danh sách công việc để nhắc deadlines.
-                            </p>
-                        </div>
+        <!-- Module 2: Study Room -->
+        <div class="list-item" style="flex-direction: column; align-items: flex-start; padding: 28px; cursor: pointer; border-radius: var(--radius-lg);" onclick="window.location.href='/study'">
+            <div style="width: 48px; height: 48px; border-radius: var(--radius); background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px;">
+                🧠
+            </div>
+            <h3 style="font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 8px;">
+                Study Workspace & Notes
+            </h3>
+            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
+                Break down complex topics using <strong>Kanban Problem boards</strong> (Knowledge, Deductions, Hypotheses). Write rich notes with <strong>Markdown & LaTeX math formulas</strong> via KaTeX, plus inline <code>@mention</code> cross-referencing.
+            </p>
+            <span style="font-size: 13px; font-weight: 700; color: #d97706; display: inline-flex; align-items: center; gap: 6px;">
+                Open Study Room →
+            </span>
+        </div>
+    </div>
 
-                        <!-- Feature 3 -->
-                        <div class="block-list-container welcome-card" 
-                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
-                            onclick="window.location.href='/study'">
-                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Study</h3>
-                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
-                                Các công cụ hỗ trợ.
-                            </p>
-                        </div>
+    <!-- Computer Science & DSA Architecture Overview -->
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+            <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--surface-subtle); display: flex; align-items: center; justify-content: center; font-size: 18px;">
+                💡
+            </div>
+            <div>
+                <h3 style="font-size: 17px; font-weight: 800; color: var(--text); margin: 0;">Under the Hood: Data Structures & Algorithms</h3>
+                <span style="font-size: 12px; color: var(--text-muted);">Key algorithms implemented inside Locked</span>
+            </div>
+        </div>
 
-                        <!-- Feature 4 -->
-                        <div class="block-list-container welcome-card" 
-                            style="height: auto !important; min-height: 0 !important; cursor: pointer; transition: transform 0.3s, border-color 0.3s; padding: 35px; border-radius: 15px; border: 1px solid var(--border);"
-                            onclick="window.location.href='/chat'">
-                            <h3 style="margin-bottom: 15px; color: var(--primary); font-size: 24px; font-weight: 800;">Chatbot</h3>
-                            <p style="font-size: 18px; color: #555; line-height: 1.6; margin: 0;">
-                                Chatbot cho ai sẽ cần.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Technical Concept & Architecture Section -->
-                    <div style="margin-top: 50px; padding: 40px; background: #fff; border-radius: 20px; border: 1px dashed var(--border);">
-                        <h3 style="margin-bottom: 30px; color: var(--primary); font-size: 26px; display: flex; align-items: center; gap: 12px; font-weight: 900;">
-                            <span style="font-size: 32px;">💡</span> Core Concept & Architecture
-                        </h3>
-                        
-                        <div style="display: flex; flex-direction: column; gap: 45px; text-align: left;">
-                            <!-- Architecture Part -->
-                            <div>
-                                <h4 style="font-size: 20px; color: var(--primary); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 10px; font-weight: 800;">
-                                    <span style="width: 25px; height: 3px; background: var(--primary); display: inline-block;"></span> Sơ đồ vận hành
-                                </h4>
-                                <ul style="font-size: 16px; color: #444; line-height: 1.8; padding-left: 25px; margin: 0;">
-                                    <li>
-                                        <strong>2 Server Chạy Local:</strong> Hệ thống sử dụng <strong>Observation Server</strong> để quan sát thời gian thực và <strong>Backend Server</strong> để xử lý logic/AI.
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <div style="border-top: 1px solid #eee; width: 60px;"></div>
-
-                            <!-- DSA Part -->
-                            <div>
-                                <h4 style="font-size: 20px; color: var(--primary); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 10px; font-weight: 800;">
-                                    <span style="width: 25px; height: 3px; background: var(--primary); display: inline-block;"></span> Cấu trúc dữ liệu & Giải thuật
-                                </h4>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px;">
-                                    <div>
-                                        <strong style="font-size: 17px; color: #222; display: block; margin-bottom: 12px;">Dữ liệu (Data Structures):</strong>
-                                        <ul style="font-size: 16px; color: #555; line-height: 1.8; padding-left: 25px; margin: 0;">
-                                            <li><strong>Mảng (Arrays):</strong> Quản lý danh sách tập trung.</li>
-                                            <li><strong>Hàng đợi (Queue):</strong> Xử lý nạp và điều phối Hotkeys.</li>
-                                            <li><strong>Min Heap:</strong> Tối ưu hóa phân nhóm Interval Partitioning.</li>
-                                            <li><strong>B-tree:</strong> Quản lý cơ sở dữ liệu.</li>
-
-                                        </ul>
-                                    </div>
-                                    <div>
-                                        <strong style="font-size: 17px; color: #222; display: block; margin-bottom: 12px;">Giải thuật (Algorithms):</strong>
-                                        <ul style="font-size: 16px; color: #555; line-height: 1.8; padding-left: 25px; margin: 0;">
-                                            <li><strong>Semantic Similarity:</strong> Sử dụng Cosine Similarity, N-grams và Min-Hash.</li>
-                                            <li><strong>CRC32:</strong> Hashing siêu tốc để kiểm tra Blocklist.</li>
-                                            <li><strong>Tham lam (Greedy):</strong> Xử lý bài toán Interval Partitioning.</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style="border-top: 1px solid #eee; width: 60px;"></div>
-
-                            <!-- OOP Part -->
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 35px; text-align: center; padding: 25px;">
-                        <p style="font-size: 16px; color: #777; font-style: italic;">
-                            Select a module from the sidebar on the left to begin your journey.
-                        </p>
-                    </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div style="background: var(--surface-subtle); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-subtle);">
+                <div style="font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 6px;">
+                    ⚡ Greedy Interval Partitioning (Min-Heap)
                 </div>
+                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                    Used in the Calendar / Gantt view to automatically calculate the minimum number of parallel rows required to display overlapping deadlines without collisions in \(O(N \log N)\) time.
+                </p>
+            </div>
+
+            <div style="background: var(--surface-subtle); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-subtle);">
+                <div style="font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 6px;">
+                    🌲 Tree Hierarchy & Directed Graphs
+                </div>
+                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                    Powers the multi-level Project & Sub-project hierarchy, recursive path resolution (Breadcrumbs), and cross-note entity mentions.
+                </p>
+            </div>
+
+            <div style="background: var(--surface-subtle); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-subtle);">
+                <div style="font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 6px;">
+                    🛡️ SQLite B-Trees with Referential Integrity
+                </div>
+                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                    Uses indexed SQLite B-Trees with <code>PRAGMA foreign_keys = ON</code> to deliver instant local lookups and cascade cleanups across problems, columns, and records.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -1,59 +1,71 @@
-# Study Toolkit App
+# Locked - Study Toolkit
 
-This is a local study-toolkit app that I made for my IT003 subject. This toolkit includes many tools designed to aid my studies, including website blocking, task lists, and an AI chatbot. I plan to expand this further in the future when I have more ideas.
+A local, distraction-free study and productivity toolkit tailored for Data Structures & Algorithms (IT003) and computer science coursework.
 
-This app runs locally on your machine without the need for an external server.
+---
 
-![App Preview](frontend/material/sample.png)
+## Features
 
-### Tech Stack
-- **Model:** Gemini, OpenAI, OpenRouter
-- **Database:** SQLite
-- **Backend:** Python Starlette
-- **Frontend:** HTML, CSS, and JavaScript
+### 1. Task & Deadline Management
+- **Task Organization**: Create, edit, and organize tasks with 5 levels of priority, custom label tags, and due dates.
+- **Visual Calendar & Gantt Timeline**: Schedule view using an optimal **Greedy Interval Partitioning** algorithm implemented with a **Min-Heap** to lay out overlapping deadlines without collision in \(O(N \log N)\) time.
+- **Search & Quick Filtering**: Filter by priority level, status, or labels.
 
-### Core Idea
-The application maintains two concurrent servers: one to handle the backend APIs and databases, and another to act as a background window listener to observe and block distracting websites.
+### 2. Study Workspace
+- **Project & Sub-project Hierarchy**: Multi-level tree structure with recursive breadcrumb navigation.
+- **Problem Kanban Boards**: Deconstruct complex algorithmic and theoretical problems into columns (e.g. *Knowledge*, *Questions*, *Inferences*).
+- **Rich Markdown Notes & LaTeX**: Write notes with full Markdown syntax and render mathematical equations via KaTeX (`$...$` for inline, `$$...$$` for display math).
+- **Inline Mentions (`@`)**: Seamlessly cross-reference projects, problems, and notes with auto-completing search.
 
-# Installation Guide
+---
+
+## Getting Started
+
+### Requirements
+- Python `>= 3.10` (tested on Linux, macOS, and Windows)
+- `uv` (recommended) or standard `python3 -m venv`
+
+### Installation
 
 ```bash
-pip install uv
+# 1. Clone repository
 git clone https://github.com/nguyenkhanhtai/locked.git
 cd locked
-uv sync
-.venv\Scripts\activate # On Windows
-scripts\activate.bat
+
+# 2. Create virtual environment and install dependencies
+uv venv
+uv pip install -e .
+# Or install directly with test tools:
+uv pip install starlette uvicorn jinja2 python-multipart pytest httpx
 ```
 
-# Functions
+### Running the Application
 
-As a comprehensive study toolkit, Locked is designed to minimize distractions and maximize learning efficiency. Here are the core features:
+```bash
+python backend/run.py
+```
+Then open your browser and navigate to:
+**`http://127.0.0.1:8765`**
 
-## Blocklist & Time Tracking
-- **Website Blocking**: Temporarily or permanently block distracting websites to maintain focus during study sessions. The app actively monitors your active browser window to prevent access to locked URLs.
-- **Time Tracking**: Automatically tracks the time you spend on various domains, providing a top-sites consumption chart to help you stay aware of your browsing habits.
+*(To change port, set `LOCKED_PORT=8080 python backend/run.py`)*
 
-## Task Management
-- **Task Tracking**: Add, edit, and organize tasks with priorities, labels, and deadlines.
-- **Gantt / Calendar View**: Visualize your upcoming deadlines on a monthly timeline to plan your study schedule effectively.
+---
 
-## Study Room
-- **Memorize (Flashcards)**: Create projects and flashcards to review concepts. It features an AI-graded test mode that uses semantic similarity (via Embeddings or LLM Prompting) to accurately evaluate your typed answers against the ground truth.
-- **Thinking Workspace**: A dedicated space to break down complex problems. You can define a problem statement and organize your thoughts into 'Knowledge', 'Inferences' (derived from multiple sources), and 'Questions/Hypotheses' to map out your logical reasoning.
+## Running the Automated Test Suite
 
-## AI Chatbot
-- **Context-Aware Assistant**: An integrated AI assistant (supporting Google Gemini, OpenAI, and OpenRouter) that helps you study, code, and solve problems.
-- **Web & App Integration**: Equipped with MCP (Model Context Protocol) tools, the AI can seamlessly search the web, read webpages, check your schedule, and view your blocklist to provide highly contextual answers.
+Locked includes a comprehensive automated test suite covering database operations, referential integrity, and all REST API endpoints:
 
-# Hotkeys
+```bash
+python -m pytest tests -v
+```
 
-To keep your workflow seamless and uninterrupted, Locked supports global hotkeys that open quick-action popups directly over your active windows. 
+---
 
-By default, they are configured as follows:
+## Architecture & Data Structures
 
-- **Quick Block** (`Ctrl + Alt + Shift + B`): Instantly block the website you are currently viewing.
-- **Quick Task** (`Ctrl + Alt + Shift + T`): Quickly add a new task or deadline without opening the main app.
-- **Quick Flashcard** (`Ctrl + Alt + Shift + M`): Instantly save a new term or concept into your Memorize flashcards.
-
-*(Note: You can fully customize these keybindings inside the app's Settings).*
+- **Backend**: Python Starlette ASGI framework with clean async route handlers.
+- **Database**: Embedded SQLite with `PRAGMA foreign_keys = ON` for ACID compliance and cascade deletions.
+- **Algorithm**:
+  - *Min-Heap / Priority Queue*: Interval Partitioning for timeline scheduling.
+  - *Tree Traversal*: Hierarchical project path resolution.
+- **Frontend**: Responsive HTML5, Vanilla JavaScript, CSS custom properties design tokens, and KaTeX for LaTeX formulas.
