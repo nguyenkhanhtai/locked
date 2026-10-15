@@ -157,3 +157,83 @@ def test_study_records_and_cards_api(client):
     del_rec = client.request("DELETE", "/api/study/records", json={"id": rec_id})
     assert del_rec.status_code == 200
 
+
+def test_study_hierarchy_tree_and_problem_records_api(client):
+    # 1. Create Project
+    proj_res = client.post("/api/study/projects", json={
+        "name": "Dynamic Programming",
+        "description": "Memoization & Tabulation"
+    })
+    assert proj_res.status_code == 200
+    proj_id = proj_res.json()["data"]["id"]
+
+    # 2. Create Subproject
+    sub_res = client.post("/api/study/projects", json={
+        "name": "Knapsack Variants",
+        "parent_project_id": proj_id
+    })
+    assert sub_res.status_code == 200
+    sub_id = sub_res.json()["data"]["id"]
+
+    # 3. Create Problem
+    prob_res = client.post("/api/study/problems", json={
+        "project_id": proj_id,
+        "title": "0/1 Knapsack",
+        "description": "$$dp[i][w] = \\max(dp[i-1][w], dp[i-1][w-wt[i]] + val[i])$$"
+    })
+    assert prob_res.status_code == 200
+    prob_id = prob_res.json()["data"]["id"]
+
+    # 4. Create Note linked directly to problem
+    note1_res = client.post("/api/study/records", json={
+        "title": "Space Optimization O(W)",
+        "body": "We only need the previous row: iterate w backwards.",
+        "project_id": proj_id,
+        "problem_id": prob_id
+    })
+    assert note1_res.status_code == 200
+    note1_id = note1_res.json()["data"]["id"]
+
+    # 5. Create General Note for project (problem_id is None)
+    note2_res = client.post("/api/study/records", json={
+        "title": "DP Identification Cheat Sheet",
+        "body": "Look for overlapping subproblems and optimal substructure.",
+        "project_id": proj_id
+    })
+    assert note2_res.status_code == 200
+    note2_id = note2_res.json()["data"]["id"]
+
+    # 6. Fetch records by problem_id
+    prob_records_res = client.get(f"/api/study/records?problem_id={prob_id}")
+    assert prob_records_res.status_code == 200
+    prob_records = prob_records_res.json()["data"]
+    assert len(prob_records) == 1
+    assert prob_records[0]["id"] == note1_id
+    assert prob_records[0]["problem_id"] == prob_id
+
+    # 7. Fetch unassigned (general) records for project
+    gen_records_res = client.get(f"/api/study/records?project_id={proj_id}&unassigned=true")
+    assert gen_records_res.status_code == 200
+    gen_records = gen_records_res.json()["data"]
+    assert len(gen_records) == 1
+    assert gen_records[0]["id"] == note2_id
+    assert gen_records[0]["problem_id"] is None
+
+    # 8. Test Hierarchy Tree API
+    tree_res = client.get(f"/api/study/tree?project_id={proj_id}")
+    assert tree_res.status_code == 200
+    tree_data = tree_res.json()["data"]
+
+    assert tree_data["project"]["id"] == proj_id
+    assert len(tree_data["subprojects"]) == 1
+    assert tree_data["subprojects"][0]["id"] == sub_id
+
+    assert len(tree_data["problems"]) == 1
+    assert tree_data["problems"][0]["id"] == prob_id
+    assert len(tree_data["problems"][0]["notes"]) == 1
+    assert tree_data["problems"][0]["notes"][0]["id"] == note1_id
+
+    assert len(tree_data["general_notes"]) == 1
+    assert tree_data["general_notes"][0]["id"] == note2_id
+
+

@@ -78,3 +78,65 @@ def test_delete_task(client):
     get_res = client.get("/api/events")
     assert get_res.json()["data"] == []
 
+
+def test_api_events_calendar_type(client):
+    now = int(time.time())
+    # 1. Add routine task
+    res_routine = client.post("/api/events", json={
+        "name": "Attend Lecture CS101",
+        "start_date": now,
+        "end_date": now + 3600,
+        "calendar_type": "routine"
+    })
+    assert res_routine.status_code == 200
+    routine_id = res_routine.json()["data"]["id"]
+
+    # 2. Add task
+    res_task = client.post("/api/events", json={
+        "name": "Submit Assignment 2",
+        "start_date": now + 7200,
+        "end_date": now + 14400,
+        "calendar_type": "task"
+    })
+    assert res_task.status_code == 200
+    task_id = res_task.json()["data"]["id"]
+
+    # 3. Filter routine only
+    res_filter_routine = client.get("/api/events?calendar_type=routine")
+    assert res_filter_routine.status_code == 200
+    routines = res_filter_routine.json()["data"]
+    assert len(routines) == 1
+    assert routines[0]["id"] == routine_id
+    assert routines[0]["calendar_type"] == "routine"
+
+    # 4. Filter task only
+    res_filter_task = client.get("/api/events?calendar_type=task")
+    assert res_filter_task.status_code == 200
+    tasks = res_filter_task.json()["data"]
+    assert len(tasks) == 1
+    assert tasks[0]["id"] == task_id
+    assert tasks[0]["calendar_type"] == "task"
+
+    # 5. Filter all
+    res_filter_all = client.get("/api/events?calendar_type=all")
+    assert res_filter_all.status_code == 200
+    all_events = res_filter_all.json()["data"]
+    assert len(all_events) == 2
+
+    # 6. Update calendar_type from routine to task
+    update_res = client.post("/api/events", json={
+        "id": routine_id,
+        "name": "Attend Lecture CS101 (Converted to Task)",
+        "start_date": now,
+        "end_date": now + 3600,
+        "calendar_type": "task"
+    })
+    assert update_res.status_code == 200
+    assert update_res.json()["message"] == "Task updated"
+
+    res_routines_after = client.get("/api/events?calendar_type=routine").json()["data"]
+    assert len(res_routines_after) == 0
+    res_tasks_after = client.get("/api/events?calendar_type=task").json()["data"]
+    assert len(res_tasks_after) == 2
+
+

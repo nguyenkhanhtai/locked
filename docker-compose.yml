@@ -1,0 +1,35 @@
+services:
+  locked:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: locked-study-toolkit
+    ports:
+      - "127.0.0.1:${LOCKED_PORT:-8765}:8765"
+    environment:
+      - LOCKED_HOST=0.0.0.0
+      - LOCKED_PORT=8765
+      - LOCKED_RELOAD=false
+    volumes:
+      - ./backend/db:/app/backend/db
+      - ./backend/user:/app/backend/user
+      - ./backend/logs:/app/backend/logs
+    restart: unless-stopped
+
+  blocker-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: locked-blocker-daemon
+    command: ["python", "scripts/blocker_daemon.py"]
+    environment:
+      - HOSTS_PATH=/host_hosts
+      - LOCKED_DB_PATH=/app/backend/db/locked.db
+    volumes:
+      - ./backend/db:/app/backend/db
+      - /etc/hosts:/host_hosts:rw
+    restart: unless-stopped
+    depends_on:
+      - locked
+
+

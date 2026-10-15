@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Locked — Session Target Timer</title>
+    <link rel="stylesheet" href="/static/style/variables.css?v=5.0">
+    <link rel="stylesheet" href="/static/style/components.css?v=5.0">
+    <link rel="stylesheet" href="/static/style/session_target.css?v=1.2">
+    <link rel="icon" href="/static/material/favicon.ico" type="image/x-icon">
+
+    <!-- Anti-flicker theme loader -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('locked-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 4px;
+            background: #0f1117;
+            color: var(--text, #f8fafc);
+            font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            zoom: var(--widget-scale, 0.85);
+        }
+
+        /* DMOJ Contest Popout Card */
+        .popout-card {
+            width: 100%;
+            max-width: 100%;
+            background: rgba(22, 26, 36, 0.96);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-md, 10px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .popout-card.active-running {
+            border-color: rgba(76, 110, 245, 0.5);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 12px rgba(76, 110, 245, 0.2);
+        }
+
+        .popout-card.active-paused {
+            border-color: rgba(252, 196, 25, 0.5);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 12px rgba(252, 196, 25, 0.2);
+        }
+
+        /* Top Pill Bar (Always visible, compact 36px) */
+        .popout-pill-bar {
+            height: 36px;
+            padding: 0 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: grab;
+            background: transparent;
+            -webkit-app-region: drag;
+            touch-action: none;
+        }
+
+        .popout-pill-bar button, 
+        .popout-drawer, 
+        .popout-drawer input, 
+        .popout-drawer button,
+        .popout-todos-list {
+            -webkit-app-region: no-drag;
+        }
+
+        .popout-pill-bar:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .popout-timer {
+            font-size: 13.5px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text, #ffffff);
+            line-height: 1;
+            letter-spacing: -0.01em;
+            flex-shrink: 0;
+        }
+
+        .popout-divider {
+            width: 1px;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.15);
+            flex-shrink: 0;
+        }
+
+        .popout-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary, #cbd5e1);
+            max-width: 115px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .popout-todos-count {
+            font-size: 10px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--primary, #4c6ef5);
+            background: rgba(76, 110, 245, 0.12);
+            border: 1px solid rgba(76, 110, 245, 0.25);
+            padding: 1px 4px;
+            border-radius: 9999px;
+            flex-shrink: 0;
+        }
+
+        .popout-btn-icon {
+            background: transparent;
+            border: none;
+            color: var(--text-muted, #94a3b8);
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 11px;
+            border-radius: var(--radius-sm, 4px);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background 0.15s;
+            flex-shrink: 0;
+        }
+
+        .popout-btn-icon:hover {
+            color: var(--text, #ffffff);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .popout-btn-icon.close:hover {
+            color: var(--danger, #ff6b6b);
+        }
+
+        .popout-scale-badge {
+            font-size: 9.5px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            color: var(--primary, #4c6ef5);
+            background: rgba(76, 110, 245, 0.12);
+            border: 1px solid rgba(76, 110, 245, 0.25);
+            padding: 1px 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            letter-spacing: -0.02em;
+        }
+
+        .popout-scale-badge:hover {
+            background: var(--primary, #4c6ef5);
+            color: #ffffff;
+        }
+
+        /* 2px Slim Progress Line */
+        .popout-progress-bg {
+            width: 100%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .popout-progress-bar {
+            height: 100%;
+            background: var(--primary, #4c6ef5);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Collapsible Drawer Area (Only visible when toggled) */
+        .popout-drawer {
+            display: none;
+            padding: 8px 10px 10px 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(14, 17, 24, 0.85);
+        }
+
+        .popout-card.expanded .popout-drawer {
+            display: flex;
+        }
+
+        .popout-drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.04em;
+        }
+
+        .popout-todos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: 130px;
+            overflow-y: auto;
+        }
+
+        .popout-controls {
+            display: flex;
+            gap: 6px;
+            margin-top: 2px;
+        }
+
+        .popout-controls .btn {
+            flex: 1;
+            padding: 3px 6px;
+            font-size: 10.5px;
+            font-weight: 600;
+        }
+
+        .popout-add-row {
+            display: flex;
+            gap: 4px;
+        }
+
+        .popout-add-row input {
+            flex: 1;
+            padding: 3px 6px;
+            font-size: 10.5px;
+            background: var(--surface-subtle, rgba(255, 255, 255, 0.04));
+            border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+            border-radius: var(--radius-sm, 4px);
+            color: var(--text, #ffffff);
+            outline: none;
+        }
+
+        .popout-add-row input:focus {
+            border-color: var(--primary, #4c6ef5);
+        }
+
+        /* Scale control row in drawer */
+        .popout-scale-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-sm, 4px);
+        }
+
+        .popout-scale-row input[type="range"] {
+            flex: 1;
+            accent-color: var(--primary, #4c6ef5);
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .popout-scale-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary, #cbd5e1);
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: var(--radius-sm, 3px);
+            transition: all 0.15s ease;
+            user-select: none;
+            -webkit-app-region: no-drag;
+        }
+
+        .popout-scale-btn:hover {
+            background: var(--primary, #4c6ef5);
+            color: #ffffff;
+            border-color: var(--primary, #4c6ef5);
+        }
+
+        /* Empty State */
+        .popout-empty {
+            padding: 12px 14px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="popout-card active-running" id="popout-main-card">
+        <!-- Compact Pill Bar (Always visible) -->
+        <div class="popout-pill-bar" id="popout-toggle-handle" title="Bấm để đóng/mở drawer mục tiêu">
+            <span class="dmoj-pulse-dot"></span>
+            <span class="popout-timer" id="popout-timer">25:00</span>
+            <span class="popout-divider"></span>
+            <span class="popout-title" id="popout-title">Session Target</span>
+            <span class="session-widget-merged-badge" id="popout-merged-badge" style="display: none;">MERGED</span>
+            <span class="popout-todos-count" id="popout-todos-count">(0/0)</span>
+            
+            <button type="button" class="popout-btn-icon popout-scale-badge" id="btn-scale-cycle" title="Cỡ chữ / Scale (Click đổi preset: 85% → 75% → 65% → 100% | Ctrl+Cuộn chuột)">85%</button>
+            <button type="button" class="popout-btn-icon" id="btn-popout-toggle" title="Pause / Resume">⏸</button>
+            <button type="button" class="popout-btn-icon" id="btn-popout-drawer-toggle" title="Mở danh sách bài tập (Drawer)">☰</button>
+            <button type="button" class="popout-btn-icon close" onclick="window.close()" title="Đóng cửa sổ">✕</button>
+        </div>
+
+        <!-- 2px Progress Bar -->
+        <div class="popout-progress-bg">
+            <div class="popout-progress-bar" id="popout-progress-bar"></div>
+        </div>
+
+        <!-- Collapsible Drawer (Problems & Controls) -->
+        <div class="popout-drawer" id="popout-drawer">
+            <div class="popout-drawer-header">
+                <span id="popout-targets-heading">Contest Targets</span>
+                <span style="font-size: 10px; color: var(--text-muted); cursor: pointer;" id="btn-collapse-drawer">▲ Thu gọn</span>
+            </div>
+
+            <!-- Targets Checklist -->
+            <div class="popout-todos-list" id="popout-todos-list"></div>
+
+            <!-- Add Target Row -->
+            <div class="popout-add-row">
+                <input type="text" id="popout-todo-input" placeholder="+ Thêm mục tiêu... (Enter)">
+                <button type="button" class="btn ghost btn-sm" id="btn-popout-add-todo" style="padding: 2px 6px;">+</button>
+            </div>
+
+            <!-- Scale Control Row -->
+            <div class="popout-scale-row">
+                <span style="font-size: 10px; color: var(--text-muted); font-weight: 600; white-space: nowrap;">Cỡ chữ:</span>
+                <button type="button" class="popout-scale-btn" id="btn-scale-dec" title="Thu nhỏ cỡ chữ (Ctrl + -)">A−</button>
+                <input type="range" id="popout-scale-range" min="55" max="130" step="5" value="85" title="Kéo để chỉnh cỡ chữ">
+                <span id="popout-scale-label" style="font-size: 10px; font-weight: 700; font-family: var(--font-mono); color: var(--primary); min-width: 28px; text-align: center;">85%</span>
+                <button type="button" class="popout-scale-btn" id="btn-scale-inc" title="Phóng to cỡ chữ (Ctrl + +)">A+</button>
+                <button type="button" class="popout-scale-btn" id="btn-scale-reset" title="Mặc định 85%" style="font-size: 9px; padding: 2px 4px;">Reset</button>
+            </div>
+
+            <!-- Controls (Finish / Abandon) -->
+            <div class="popout-controls">
+                <button type="button" class="btn primary btn-sm" id="btn-popout-finish">✓ Hoàn thành</button>
+                <button type="button" class="btn outline btn-sm" id="btn-popout-abandon" style="color: var(--danger); border-color: rgba(255,107,107,0.3);">✕ Hủy bỏ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="popout-card popout-empty" id="popout-empty-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 14px;">🎯</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--text);">Chưa có phiên nào</span>
+            </div>
+            <button type="button" class="popout-btn-icon close" onclick="window.close()">✕</button>
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); margin: 4px 0 0 0;">Bấm <strong>Alt+S</strong> trên web để tạo mục tiêu mới.</p>
+    </div>
+
+    <script>
+        (function() {
+            let activeSession = null;
+            let timerInterval = null;
+            let isExpanded = false;
+            let userScale = parseFloat(localStorage.getItem('locked-widget-scale')) || 0.85;
+
+            async function api(url, method = 'GET', body = null) {
+                try {
+                    const opts = { method, headers: {} };
+                    if (body) {
+                        opts.headers['Content-Type'] = 'application/json';
+                        opts.body = JSON.stringify(body);
+                    }
+                    const res = await fetch(url, opts);
+                    return await res.json();
+                } catch(e) {
+                    return { status: "500", message: e.message };
+                }
+            }
+
+            function setScale(scale, save = true) {
+                scale = Math.min(1.4, Math.max(0.5, Math.round(scale * 100) / 100));
+                userScale = scale;
+                if (save) {
+                    localStorage.setItem('locked-widget-scale', String(scale));
+                }
+                applyScale();
+                updateWindowDimensions();
+            }
+
+            function applyScale() {
+                let effectiveScale = userScale;
+                
+                // Auto-fit if window is manually resized smaller than 290px
+                const winW = window.innerWidth;
+                if (winW > 50 && winW < 290) {
+                    const autoFactor = Math.max(0.65, winW / 290);
+                    effectiveScale = effectiveScale * autoFactor;
+                }
+                
+                effectiveScale = Math.min(1.4, Math.max(0.45, Math.round(effectiveScale * 100) / 100));
+
+                document.documentElement.style.setProperty('--widget-scale', effectiveScale);
+                document.body.style.zoom = effectiveScale;
+
+                const pct = Math.round(userScale * 100);
+                const badge = document.getElementById('btn-scale-cycle');
+                const range = document.getElementById('popout-scale-range');
+                const label = document.getElementById('popout-scale-label');
+                if (badge) badge.textContent = `${pct}%`;
+                if (range) range.value = pct;
+                if (label) label.textContent = `${pct}%`;
+            }
+
+            function updateWindowDimensions() {
+                try {
+                    if (window.resizeTo) {
+                        const currentW = Math.max(220, window.outerWidth || 310);
+                        const targetH = isExpanded 
+                            ? Math.round(250 * userScale) 
+                            : Math.round(62 * userScale);
+                        window.resizeTo(currentW, Math.max(46, targetH));
+                    }
+                } catch(e) {}
+            }
+
+            function setDrawerExpanded(expanded) {
+                isExpanded = expanded;
+                const card = document.getElementById('popout-main-card');
+                const btnToggle = document.getElementById('btn-popout-drawer-toggle');
+                if (card) card.classList.toggle('expanded', isExpanded);
+                if (btnToggle) btnToggle.textContent = isExpanded ? '▲' : '☰';
+
+                updateWindowDimensions();
+            }
+
+            async function refreshSession() {
+                const res = await api('/api/sessions/active');
+                activeSession = res.data;
+                const mainCard = document.getElementById('popout-main-card');
+                const emptyCard = document.getElementById('popout-empty-card');
+
+                if (!activeSession || (activeSession.status !== 'running' && activeSession.status !== 'paused')) {
+                    mainCard.style.display = 'none';
+                    emptyCard.style.display = 'flex';
+                    if (timerInterval) clearInterval(timerInterval);
+                    try { 
+                        window.resizeTo(Math.max(220, window.outerWidth || 300), Math.round(80 * userScale)); 
+                    } catch(e) {}
+                    return;
+                }
+
+                mainCard.style.display = 'flex';
+                emptyCard.style.display = 'none';
+
+                mainCard.classList.remove('active-running', 'active-paused');
+                if (activeSession.status === 'running') mainCard.classList.add('active-running');
+                else if (activeSession.status === 'paused') mainCard.classList.add('active-paused');
+
+                document.getElementById('popout-title').textContent = activeSession.title;
+                const mergedBadge = document.getElementById('popout-merged-badge');
+                if (mergedBadge) {
+                    if (activeSession.is_merged) {
+                        mergedBadge.style.display = 'inline-block';
+                        mergedBadge.textContent = `MERGED (${activeSession.active_count})`;
+                    } else {
+                        mergedBadge.style.display = 'none';
+                    }
+                }
+
+                const heading = document.getElementById('popout-targets-heading');
+                if (heading) {
+                    heading.textContent = activeSession.is_merged ? 'Merged Targets' : 'Contest Targets';
+                }
+
+                const btnToggle = document.getElementById('btn-popout-toggle');
+                if (btnToggle) {
+                    btnToggle.textContent = activeSession.status === 'running' ? '⏸' : '▶';
+                    btnToggle.title = activeSession.status === 'running' ? 'Pause Session' : 'Resume Session';
+                }
+
+                renderTodos(activeSession.todos || []);
+                startTimer();
+            }
+
+            function renderTodos(todos) {
+                const container = document.getElementById('popout-todos-list');
+                const countEl = document.getElementById('popout-todos-count');
+                container.innerHTML = '';
+
+                const total = todos.length;
+                const done = todos.filter(t => t.done).length;
+                countEl.textContent = `(${done}/${total})`;
+
+                if (todos.length === 0) {
+                    container.innerHTML = `<div style="font-size: 11px; color: var(--text-muted); font-style: italic; padding: 4px 0;">Chưa có bài tập nào. Thêm bên dưới:</div>`;
+                    return;
+                }
+
+                todos.forEach((t, idx) => {
+                    const label = document.createElement('label');
+                    label.className = `session-widget-todo-item ${t.done ? 'done' : ''}`;
+                    label.style.fontSize = '11px';
+                    label.style.padding = '3px 6px';
+                    
+                    const tagHtml = (activeSession && activeSession.is_merged && t.session_title)
+                        ? `<span class="session-todo-tag" style="font-size: 9px; padding: 1px 4px;">[${t.session_title}]</span>`
+                        : '';
+
+                    label.innerHTML = `
+                        <input type="checkbox" ${t.done ? 'checked' : ''} data-index="${idx}">
+                        <span style="flex: 1; word-break: break-word;">${tagHtml}${t.text}</span>
+                    `;
+                    label.querySelector('input').addEventListener('change', async (e) => {
+                        const sId = t.session_id || activeSession.id;
+                        const tId = t.id || String(idx);
+                        t.done = e.target.checked;
+                        label.classList.toggle('done', e.target.checked);
+                        await api('/api/sessions/todo/toggle', 'POST', {
+                            session_id: sId,
+                            todo_id: tId,
+                            done: e.target.checked
+                        });
+                        refreshSession();
+                    });
+                    container.appendChild(label);
+                });
+            }
+
+            function startTimer() {
+                if (timerInterval) clearInterval(timerInterval);
+                const update = () => {
+                    if (!activeSession) return;
+                    const now = Math.floor(Date.now() / 1000);
+                    let elapsed = activeSession.elapsed_seconds || 0;
+                    const startedAt = activeSession.started_at || (activeSession.scheduled_start_at > 0 && activeSession.scheduled_start_at <= now ? activeSession.scheduled_start_at : 0);
+                    if (activeSession.status === 'running' && startedAt > 0) {
+                        elapsed += Math.max(0, now - startedAt);
+                    }
+                    const total = Math.max(1, activeSession.duration_minutes * 60);
+                    const remaining = Math.max(0, total - elapsed);
+
+                    const hrs = Math.floor(remaining / 3600);
+                    const mins = Math.floor((remaining % 3600) / 60);
+                    const secs = remaining % 60;
+                    let fmt = hrs > 0 
+                        ? `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+                        : `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+                    document.getElementById('popout-timer').textContent = fmt;
+                    document.title = `${fmt} - ${activeSession.title}`;
+
+                    const percent = Math.min(100, (elapsed / total) * 100);
+                    document.getElementById('popout-progress-bar').style.width = percent + '%';
+                };
+                update();
+                timerInterval = setInterval(update, 1000);
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // Apply user scale & initial dimensions
+                applyScale();
+                updateWindowDimensions();
+
+                // Scale controls
+                const scalePresets = [0.85, 0.75, 0.65, 1.0];
+                const cycleBtn = document.getElementById('btn-scale-cycle');
+                if (cycleBtn) {
+                    cycleBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        let currIdx = scalePresets.findIndex(p => Math.abs(p - userScale) < 0.04);
+                        let nextIdx = (currIdx + 1) % scalePresets.length;
+                        setScale(scalePresets[nextIdx]);
+                    };
+                }
+
+                const rangeInput = document.getElementById('popout-scale-range');
+                if (rangeInput) {
+                    rangeInput.oninput = (e) => {
+                        setScale(parseFloat(e.target.value) / 100);
+                    };
+                }
+
+                const btnScaleDec = document.getElementById('btn-scale-dec');
+                if (btnScaleDec) {
+                    btnScaleDec.onclick = (e) => {
+                        e.stopPropagation();
+                        setScale(userScale - 0.05);
+                    };
+                }
+
+                const btnScaleInc = document.getElementById('btn-scale-inc');
+                if (btnScaleInc) {
+                    btnScaleInc.onclick = (e) => {
+                        e.stopPropagation();
+                        setScale(userScale + 0.05);
+                    };
+                }
+
+                const btnScaleReset = document.getElementById('btn-scale-reset');
+                if (btnScaleReset) {
+                    btnScaleReset.onclick = (e) => {
+                        e.stopPropagation();
+                        setScale(0.85);
+                    };
+                }
+
+                // Mouse wheel zoom (Ctrl + Scroll or Alt + Scroll)
+                window.addEventListener('wheel', (e) => {
+                    if (e.ctrlKey || e.altKey) {
+                        e.preventDefault();
+                        const delta = e.deltaY < 0 ? 0.05 : -0.05;
+                        setScale(userScale + delta);
+                    }
+                }, { passive: false });
+
+                // Keyboard shortcuts (Ctrl + -, Ctrl + +, Ctrl + 0)
+                window.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && (e.key === '-' || e.key === '_')) {
+                        e.preventDefault();
+                        setScale(userScale - 0.05);
+                    } else if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+                        e.preventDefault();
+                        setScale(userScale + 0.05);
+                    } else if (e.ctrlKey && e.key === '0') {
+                        e.preventDefault();
+                        setScale(0.85);
+                    }
+                });
+
+                // Auto-fit scale on window resize ("kéo ngang kéo dọc")
+                window.addEventListener('resize', () => {
+                    applyScale();
+                });
+
+                // Toggle drawer when clicking drawer button or pill bar
+                document.getElementById('btn-popout-drawer-toggle').onclick = (e) => {
+                    e.stopPropagation();
+                    setDrawerExpanded(!isExpanded);
+                };
+
+                document.getElementById('btn-collapse-drawer').onclick = () => {
+                    setDrawerExpanded(false);
+                };
+
+                // Desktop Window Dragging (Cinnamon/X11 & Browser popup)
+                let isWinDragging = false;
+                let mouseStartX = 0, mouseStartY = 0;
+                let winStartX = 0, winStartY = 0;
+                let winHasMoved = false;
+
+                const pillBar = document.getElementById('popout-toggle-handle');
+
+                pillBar.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('button') || e.target.closest('input')) return;
+                    e.preventDefault();
+                    isWinDragging = true;
+                    winHasMoved = false;
+                    mouseStartX = e.screenX;
+                    mouseStartY = e.screenY;
+                    winStartX = window.screenX;
+                    winStartY = window.screenY;
+                    pillBar.style.cursor = 'grabbing';
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!isWinDragging) return;
+                    const dx = e.screenX - mouseStartX;
+                    const dy = e.screenY - mouseStartY;
+                    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                        winHasMoved = true;
+                        try {
+                            window.moveTo(winStartX + dx, winStartY + dy);
+                        } catch(err) {}
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (isWinDragging) {
+                        isWinDragging = false;
+                        pillBar.style.cursor = 'grab';
+                    }
+                });
+
+                pillBar.addEventListener('click', (e) => {
+                    if (winHasMoved) {
+                        winHasMoved = false;
+                        return;
+                    }
+                    if (e.target.closest('button')) return;
+                    setDrawerExpanded(!isExpanded);
+                });
+
+                // Pause / Resume
+                document.getElementById('btn-popout-toggle').onclick = async (e) => {
+                    e.stopPropagation();
+                    if (!activeSession) return;
+                    if (activeSession.status === 'running') {
+                        await api('/api/sessions/pause', 'POST', { id: activeSession.id });
+                    } else {
+                        await api('/api/sessions/resume', 'POST', { id: activeSession.id });
+                    }
+                    refreshSession();
+                };
+
+                // Finish
+                document.getElementById('btn-popout-finish').onclick = async () => {
+                    if (!activeSession) return;
+                    const confirmMsg = activeSession.is_merged
+                        ? `Hoàn thành tất cả ${activeSession.active_count} phiên đang chạy?`
+                        : `Hoàn thành phiên "${activeSession.title}" bây giờ?`;
+                    if (confirm(confirmMsg)) {
+                        if (activeSession.is_merged) {
+                            await api('/api/sessions/complete', 'POST', { complete_all: true });
+                        } else {
+                            await api('/api/sessions/complete', 'POST', { id: activeSession.id });
+                        }
+                        refreshSession();
+                    }
+                };
+
+                // Abandon
+                document.getElementById('btn-popout-abandon').onclick = async () => {
+                    if (!activeSession) return;
+                    const confirmMsg = activeSession.is_merged
+                        ? `Hủy bỏ tất cả ${activeSession.active_count} phiên đang chạy?`
+                        : `Hủy bỏ phiên "${activeSession.title}"?`;
+                    if (confirm(confirmMsg)) {
+                        if (activeSession.is_merged) {
+                            await api('/api/sessions/abandon', 'POST', { abandon_all: true });
+                        } else {
+                            await api('/api/sessions/abandon', 'POST', { id: activeSession.id });
+                        }
+                        refreshSession();
+                    }
+                };
+
+                // Add Todo
+                const input = document.getElementById('popout-todo-input');
+                const btnAdd = document.getElementById('btn-popout-add-todo');
+                const submitTodo = async () => {
+                    if (!activeSession || !input) return;
+                    const val = input.value.trim();
+                    if (val) {
+                        const targetId = activeSession.primary_session ? activeSession.primary_session.id : activeSession.id;
+                        const newTodo = { id: String(Date.now()), text: val, done: false };
+                        activeSession.todos = activeSession.todos || [];
+                        activeSession.todos.push(newTodo);
+                        await api('/api/sessions/todos', 'PUT', {
+                            id: targetId,
+                            todos: activeSession.todos.filter(t => !t.session_id || t.session_id === targetId)
+                        });
+                        input.value = '';
+                        refreshSession();
+                    }
+                };
+                if (btnAdd) btnAdd.onclick = submitTodo;
+                if (input) input.onkeydown = (e) => { if (e.key === 'Enter') submitTodo(); };
+
+                refreshSession();
+                setInterval(refreshSession, 4000); // Polling sync
+            });
+        })();
+    </script>
+</body>
+</html>

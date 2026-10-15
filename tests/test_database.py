@@ -79,6 +79,82 @@ def test_task_db_sorting(task_db):
     assert events[2].name == "Task 3 (Later)"
 
 
+def test_task_db_calendar_type(task_db):
+    now = int(time.time())
+    # 1. Add routine event
+    r1 = task_db.add_event(
+        name="Morning Gym",
+        description="Workout 45m",
+        start_date=now,
+        end_date=now + 2700,
+        calendar_type="routine"
+    )
+    assert r1.calendar_type == "routine"
+
+    # 2. Add task event (default)
+    t1 = task_db.add_event(
+        name="Finish Report",
+        description="Quarterly report",
+        start_date=now + 3600,
+        end_date=now + 7200,
+        calendar_type="task"
+    )
+    assert t1.calendar_type == "task"
+
+    # 3. Filter routine only
+    routines = task_db.get_events(calendar_type="routine")
+    assert len(routines) == 1
+    assert routines[0].id == r1.id
+    assert routines[0].name == "Morning Gym"
+
+    # 4. Filter task only
+    tasks = task_db.get_events(calendar_type="task")
+    assert len(tasks) == 1
+    assert tasks[0].id == t1.id
+    assert tasks[0].name == "Finish Report"
+
+    # 5. Filter all
+    all_events = task_db.get_events(calendar_type="all")
+    assert len(all_events) == 2
+
+    # 6. Update calendar_type
+    task_db.update_event(event_id=r1.id, name="Morning Gym", calendar_type="task")
+    updated_r1 = task_db.get_event(r1.id)
+    assert updated_r1.calendar_type == "task"
+    assert len(task_db.get_events(calendar_type="routine")) == 0
+    assert len(task_db.get_events(calendar_type="task")) == 2
+
+
+def test_task_db_migration_without_calendar_type_column(tmp_path):
+    import sqlite3
+    db_file = str(tmp_path / "legacy_tasks.db")
+    # Simulate legacy database created without calendar_type column
+    conn = sqlite3.connect(db_file)
+    conn.execute("""
+        CREATE TABLE events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            start_date INTEGER NOT NULL,
+            end_date INTEGER NOT NULL,
+            priority INTEGER DEFAULT 1,
+            labels TEXT DEFAULT '',
+            done INTEGER DEFAULT 0
+        )
+    """)
+    conn.execute("INSERT INTO events (name, start_date, end_date) VALUES ('Legacy Task', 1000, 2000)")
+    conn.commit()
+    conn.close()
+
+    # Now open with TaskDatabase, which should trigger ALTER TABLE
+    db = TaskDatabase(db_path=db_file)
+    events = db.get_events()
+    assert len(events) == 1
+    assert events[0].name == "Legacy Task"
+    assert events[0].calendar_type == "task"
+
+
+
 # ==========================================
 # StudyDatabase Unit Tests
 # ==========================================

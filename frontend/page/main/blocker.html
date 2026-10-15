@@ -1,0 +1,306 @@
+{% extends "shared/base.html" %}
+
+{% block content %}
+<div id="blocker" class="page active">
+    <!-- Header with Title & Badge -->
+    <div class="header">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h2>Focus Blocker</h2>
+                <span class="lock-badge locked">
+                    <svg width="12" height="12"><use href="#icon-lock"></use></svg>
+                    <span>Hard Lock (Tối đa 6 tiếng)</span>
+                </span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Chặn website và đường link gây xao nhãng. Một khi đã đặt, <strong>tuyệt đối không thể xóa hay hủy bỏ</strong> cho đến khi hết giờ!
+            </p>
+        </div>
+        <div>
+            <a href="/blocked" target="_blank" class="btn outline btn-sm" title="Xem trước màn hình can thiệp khi truy cập trang bị khóa">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span>Preview Block Screen</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Hard Lock Commitment Banner -->
+    <div class="lock-banner">
+        <svg class="lock-banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div class="lock-banner-content">
+            <h4>Cam kết kỷ luật thép (Ulysses Contract)</h4>
+            <p>
+                Khi bạn bấm <strong>Kích hoạt Khóa cứng</strong>, quy tắc sẽ được ghi vào cơ sở dữ liệu với thời gian hết hạn cố định.
+                Hệ thống backend và giao diện từ chối mọi yêu cầu xóa hoặc gỡ bỏ.
+                Thời lượng tối đa là <strong>6 tiếng (360 phút)</strong> để bảo đảm an toàn.
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="blocker-grid">
+        <!-- Left: Form & Setup Guides -->
+        <div>
+            <!-- Create Lock Form -->
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 24px;">
+                <h3 style="font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" style="color: var(--danger);"><use href="#icon-lock"></use></svg>
+                    <span>Thiết lập Khóa Cứng Mới</span>
+                </h3>
+
+                <form id="blocker-form">
+                    <!-- URL Input -->
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+                            Đường link hoặc Tên miền cần chặn:
+                        </label>
+                        <input type="text" id="blocker-url" class="form-control" placeholder="vd: youtube.com/shorts, facebook.com, tiktok.com..." required style="width: 100%; font-family: var(--font-mono); font-size: 13px;">
+                        
+                        <!-- Quick presets -->
+                        <div style="margin-top: 8px;">
+                            <span style="font-size: 11px; color: var(--text-muted); margin-right: 6px;">Gợi ý nhanh:</span>
+                            <div class="preset-pills-container" style="display: inline-flex;">
+                                <button type="button" class="site-preset-pill" data-site="youtube.com/shorts" data-match="exact">YouTube Shorts</button>
+                                <button type="button" class="site-preset-pill" data-site="facebook.com" data-match="domain">Facebook</button>
+                                <button type="button" class="site-preset-pill" data-site="tiktok.com" data-match="domain">TikTok</button>
+                                <button type="button" class="site-preset-pill" data-site="reddit.com" data-match="domain">Reddit</button>
+                                <button type="button" class="site-preset-pill" data-site="x.com" data-match="domain">Twitter / X</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Match Scope Radio -->
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+                            Phạm vi chặn:
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <label style="display: flex; align-items: flex-start; gap: 8px; background: var(--surface-subtle); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer;">
+                                <input type="radio" name="match_type" value="domain" checked style="margin-top: 3px; cursor: pointer;">
+                                <div>
+                                    <div style="font-size: 12px; font-weight: 600; color: var(--text);">Toàn bộ Website</div>
+                                    <div style="font-size: 11px; color: var(--text-muted);">Chặn toàn bộ tên miền (vd: facebook.com)</div>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: flex-start; gap: 8px; background: var(--surface-subtle); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer;">
+                                <input type="radio" name="match_type" value="exact" style="margin-top: 3px; cursor: pointer;">
+                                <div>
+                                    <div style="font-size: 12px; font-weight: 600; color: var(--text);">Chỉ Link Cụ Thể</div>
+                                    <div style="font-size: 11px; color: var(--text-muted);">Chỉ chặn link con (vd: /shorts, /reels)</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Duration Slider & Presets -->
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">
+                                Thời gian khóa (Tối đa 6 tiếng):
+                            </label>
+                            <span id="duration-display" style="font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--primary);">
+                                1 giờ
+                            </span>
+                        </div>
+                        
+                        <input type="range" id="blocker-duration" min="5" max="360" step="5" value="60" style="width: 100%; cursor: pointer;">
+                        
+                        <div class="preset-pills-container">
+                            <button type="button" class="preset-pill" data-mins="15">15m</button>
+                            <button type="button" class="preset-pill" data-mins="30">30m</button>
+                            <button type="button" class="preset-pill active" data-mins="60">1h</button>
+                            <button type="button" class="preset-pill" data-mins="120">2h</button>
+                            <button type="button" class="preset-pill" data-mins="240">4h</button>
+                            <button type="button" class="preset-pill" data-mins="360">6h (Max)</button>
+                        </div>
+                    </div>
+
+                    <!-- Reason / Goal -->
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+                            Lý do / Mục tiêu học tập (Tùy chọn):
+                        </label>
+                        <input type="text" id="blocker-reason" class="form-control" placeholder="vd: Ôn thi cấu trúc dữ liệu IT003, Luyện thuật toán Graph..." style="width: 100%; font-size: 12px;">
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn primary" style="width: 100%; padding: 10px; font-weight: 700; background: var(--danger); border-color: rgba(255, 107, 107, 0.4);">
+                        <svg width="16" height="16"><use href="#icon-lock"></use></svg>
+                        <span>KÍCH HOẠT KHÓA CỨNG (KHÔNG THỂ HỦY)</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Setup Guides: Browser Extension & /etc/hosts -->
+            <div class="setup-card">
+                <h3>
+                    <svg width="16" height="16" style="color: var(--primary);"><use href="#icon-shield"></use></svg>
+                    <span>Cơ chế thực thi chặn đa tầng</span>
+                </h3>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                    Để việc chặn có hiệu lực trực tiếp trên trình duyệt và toàn bộ hệ thống máy tính của bạn:
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <!-- Step 1: Chrome Extension -->
+                    <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <strong style="font-size: 12px; color: var(--text);">1. Cài Browser Extension (Chrome / Brave / Edge)</strong>
+                            <span class="lock-badge exact-scope">Khuyên dùng</span>
+                        </div>
+                        <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 8px;">
+                            Chặn được cả link cụ thể (như <code>/shorts</code>) lẫn toàn bộ domain. Tự động chuyển hướng sang trang Locked kèm đồng hồ đếm ngược.
+                        </p>
+                        <ol style="font-size: 11px; color: var(--text-muted); padding-left: 18px; margin: 0 0 8px 0; line-height: 1.5;">
+                            <li>Mở trình duyệt, truy cập <code>chrome://extensions</code> và bật <strong>Developer mode</strong>.</li>
+                            <li>Bấm <strong>Load unpacked</strong> (Tải tiện ích đã giải nén).</li>
+                            <li>Chọn thư mục: <code>extension/</code> bên trong thư mục dự án Locked.</li>
+                        </ol>
+                    </div>
+
+                    <!-- Step 2: /etc/hosts daemon -->
+                    <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <strong style="font-size: 12px; color: var(--text);">2. Chạy ngầm hoàn toàn bằng Docker</strong>
+                            <span class="lock-badge exact-scope">Docker</span>
+                        </div>
+                        <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 6px;">
+                            Tự động chạy ngầm cả Web App lẫn Blocker Daemon, tự động đồng bộ `/etc/hosts` của máy host cho mọi trình duyệt:
+                        </p>
+                        <div class="code-block-box">
+                            <span>docker compose up -d</span>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Native systemd -->
+                    <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <strong style="font-size: 12px; color: var(--text);">3. Cài đặt Systemd Service trực tiếp (Linux)</strong>
+                            <span class="lock-badge domain-scope">OS Level</span>
+                        </div>
+                        <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 6px;">
+                            Cài dịch vụ chạy nền khởi động cùng máy tính nếu không muốn dùng Docker:
+                        </p>
+                        <div class="code-block-box">
+                            <span>sudo bash scripts/install_service.sh</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Active Locks & History -->
+        <div>
+            <!-- Active Locks Section -->
+            <div style="margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h3 style="font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px;">
+                        <svg width="14" height="14" style="color: var(--danger);"><use href="#icon-lock"></use></svg>
+                        <span>Đang Bị Khóa ({{ active_rules|length }})</span>
+                    </h3>
+                    <span style="font-size: 11px; color: var(--text-muted);">Real-time Countdown</span>
+                </div>
+
+                {% if active_rules and active_rules|length > 0 %}
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    {% for rule in active_rules %}
+                    <div class="lock-card active-lock" id="rule-card-{{ rule.id }}">
+                        <div class="lock-card-header">
+                            <div>
+                                <span class="lock-target-title">{{ rule.url_pattern }}</span>
+                                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                                    {% if rule.match_type == 'domain' %}
+                                    <span class="lock-badge domain-scope">Domain</span>
+                                    {% else %}
+                                    <span class="lock-badge exact-scope">Exact Link</span>
+                                    {% endif %}
+                                    <span class="lock-badge locked">
+                                        <svg width="10" height="10"><use href="#icon-lock"></use></svg>
+                                        <span>Đang khóa</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <!-- Disabled Delete Button for Hard Lock -->
+                            <button class="btn ghost btn-sm btn-delete-rule" 
+                                    style="opacity: 0.45; cursor: not-allowed;" 
+                                    title="🔒 Đang khóa cứng - Không thể xóa trước khi hết giờ!"
+                                    onclick="handleDeleteRule({{ rule.id }}, true)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Real-time Countdown Display -->
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; background: var(--surface-subtle); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                            <div>
+                                <div class="countdown-subtext">Thời gian còn lại:</div>
+                                <div class="countdown-display" data-blocked-until="{{ rule.blocked_until }}">
+                                    {{ rule.formatted_remaining }}
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div class="countdown-subtext">Tổng thời lượng:</div>
+                                <span style="font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-secondary);">
+                                    {{ rule.duration_minutes }} phút
+                                </span>
+                            </div>
+                        </div>
+
+                        {% if rule.reason %}
+                        <div style="font-size: 11px; color: var(--text-muted); font-style: italic;">
+                            🎯 Mục tiêu: "{{ rule.reason }}"
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius); padding: 32px 20px; text-align: center;">
+                    <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--surface-subtle); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--success);">
+                        <svg width="22" height="22"><use href="#icon-shield"></use></svg>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px;">Chưa có liên kết nào bị khóa</div>
+                    <p style="font-size: 12px; color: var(--text-muted); max-width: 300px; margin: 0 auto;">
+                        Hãy nhập đường dẫn trang web làm bạn phân tâm và thiết lập khóa để bước vào trạng thái tập trung sâu.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- History Section -->
+            {% if all_rules and all_rules|length > active_rules|length %}
+            <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;">
+                <h4 style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px;">
+                    Lịch sử các phiên đã hoàn thành
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    {% for rule in all_rules %}
+                    {% if rule.is_active == 0 or rule.remaining_seconds == 0 %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--surface-subtle); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); font-size: 12px;">
+                        <div>
+                            <span style="font-family: var(--font-mono); color: var(--text-secondary);">{{ rule.url_pattern }}</span>
+                            <span class="lock-badge expired" style="margin-left: 6px;">Đã xong ({{ rule.duration_minutes }}m)</span>
+                        </div>
+                        <button class="btn ghost btn-sm" title="Xóa bản ghi lịch sử" onclick="handleDeleteRule({{ rule.id }}, false)">
+                            ✕
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="/static/function/blocker.js?v=1.0"></script>
+{% endblock %}
+

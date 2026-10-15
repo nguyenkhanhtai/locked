@@ -1,5 +1,59 @@
-document.addEventListener("DOMContentLoaded", () => {
-    // 1. Toast Notification System
+function initApp() {
+    // 1. Theme Management (Dark / Light)
+    const getSavedTheme = () => localStorage.getItem("locked-theme") || "dark";
+    
+    const setTheme = (theme) => {
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("locked-theme", theme);
+
+        // Update sidebar toggle button UI
+        const themeIcon = document.getElementById("theme-toggle-icon");
+        const themeLabel = document.getElementById("theme-toggle-label");
+        if (themeIcon) {
+            themeIcon.innerHTML = theme === 'dark' ? '<use href="#icon-sun"></use>' : '<use href="#icon-moon"></use>';
+        }
+        if (themeLabel) {
+            themeLabel.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+        }
+
+        // Update modal buttons if open
+        const btnDark = document.getElementById("theme-btn-dark");
+        const btnLight = document.getElementById("theme-btn-light");
+        if (btnDark && btnLight) {
+            if (theme === 'dark') {
+                btnDark.classList.add("primary");
+                btnDark.classList.remove("outline");
+                btnLight.classList.add("outline");
+                btnLight.classList.remove("primary");
+            } else {
+                btnLight.classList.add("primary");
+                btnLight.classList.remove("outline");
+                btnDark.classList.add("outline");
+                btnDark.classList.remove("primary");
+            }
+        }
+    };
+
+    // Initialize theme UI
+    setTheme(getSavedTheme());
+
+    // Sidebar theme toggle click
+    const btnThemeToggle = document.getElementById("btn-theme-toggle");
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener("click", () => {
+            const current = getSavedTheme();
+            const next = current === "dark" ? "light" : "dark";
+            setTheme(next);
+        });
+    }
+
+    // Modal theme buttons
+    const btnDark = document.getElementById("theme-btn-dark");
+    const btnLight = document.getElementById("theme-btn-light");
+    if (btnDark) btnDark.addEventListener("click", () => setTheme("dark"));
+    if (btnLight) btnLight.addEventListener("click", () => setTheme("light"));
+
+    // 2. Toast Notification System with Clean SVGs
     window.showToast = (message, type = 'info') => {
         const container = document.getElementById("toast-container");
         if (!container) return;
@@ -7,22 +61,25 @@ document.addEventListener("DOMContentLoaded", () => {
         const toast = document.createElement("div");
         toast.className = `toast toast-${type}`;
 
-        let icon = 'ℹ️';
-        if (type === 'success') icon = '✅';
-        else if (type === 'error') icon = '⚠️';
+        let iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+        if (type === 'success') {
+            iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
+        } else if (type === 'error') {
+            iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        }
 
-        toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+        toast.innerHTML = `${iconSvg}<span>${message}</span>`;
         container.appendChild(toast);
 
         setTimeout(() => {
-            toast.style.transition = "opacity 0.3s, transform 0.3s";
+            toast.style.transition = "opacity 0.2s, transform 0.2s";
             toast.style.opacity = "0";
-            toast.style.transform = "translateY(10px) scale(0.95)";
-            setTimeout(() => toast.remove(), 300);
-        }, 3200);
+            toast.style.transform = "translateY(8px) scale(0.96)";
+            setTimeout(() => toast.remove(), 200);
+        }, 2800);
     };
 
-    // 2. Highlight Active Nav Item
+    // 3. Highlight Active Nav Item
     const currentPath = window.location.pathname;
     let activeTarget = "welcome";
     if (currentPath.includes("tasks")) activeTarget = "tasks";
@@ -31,13 +88,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const navLinkItems = document.querySelectorAll(".nav-link-item");
     navLinkItems.forEach(link => {
         if (link.dataset.target === activeTarget) {
-            link.parentElement.classList.add("active");
+            link.classList.add("active");
         } else {
-            link.parentElement.classList.remove("active");
+            link.classList.remove("active");
         }
     });
 
-    // 3. Settings Modal
+    // 4. Preferences Modal
     const btnSettings = document.getElementById("btn-settings");
     const settingsModal = document.getElementById("settings-modal");
     const btnCloseSettings = document.getElementById("btn-close-settings-modal");
@@ -63,7 +120,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const applyThemeColor = (color) => {
         if (!color) return;
         document.documentElement.style.setProperty("--primary", color);
-        // Generate subtle ring
         document.documentElement.style.setProperty("--primary-ring", `${color}40`);
     };
 
@@ -73,7 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Load Settings
+    // Load Settings from server
     const loadSettings = async () => {
         try {
             const res = await fetch("/api/settings");
@@ -92,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnSaveSettings) {
         btnSaveSettings.addEventListener("click", async () => {
             try {
-                const primaryColor = themeColorInput ? themeColorInput.value : "#4f46e5";
+                const primaryColor = themeColorInput ? themeColorInput.value : "#4c6ef5";
                 const payload = {
                     theme: { primary: primaryColor },
                     ui: { compact_mode: false }
@@ -102,21 +158,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
-                applyThemeColor(primaryColor);
-                window.showToast("Settings saved!", "success");
                 closeSettings();
+                showToast("Preferences saved", "success");
             } catch (e) {
-                window.showToast("Failed to save settings: " + e.message, "error");
+                showToast("Failed to save preferences", "error");
             }
         });
     }
+}
 
-    // 4. Marked Global Init
-    if (typeof marked !== 'undefined') {
-        marked.use({ gfm: true, breaks: true });
-        if (typeof markedKatex !== 'undefined') {
-            marked.use(markedKatex({ throwOnError: false }));
-        }
-        window.markedConfigured = true;
-    }
-});
+if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", initApp);
+} else {
+    initApp();
+}

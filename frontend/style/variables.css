@@ -1,76 +1,153 @@
-/* Design Tokens & CSS Variables for Locked */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+/* Modern Minimalist Design System for Locked */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-    /* Brand & Accent Colors */
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
-    --primary-light: #eef2ff;
-    --primary-ring: rgba(79, 70, 229, 0.25);
+    /* Color Palette - Refined Modern Slate Theme (Softer, eye-friendly & high contrast) */
+    --bg-color: #111318;
+    --surface: #181b22;
+    --surface-subtle: #1f232c;
+    --surface-hover: #262b36;
+    --surface-active: #303746;
 
-    /* Backgrounds & Surfaces */
-    --bg-color: #f8fafc;
+    /* Text */
+    --text: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #8492a6;
+    --text-subtle: #5f6e82;
+    --text-inverse: #0f172a;
+
+    /* Borders */
+    --border: #323b4c;
+    --border-subtle: #242a37;
+    --border-hover: #48546d;
+    --border-focus: #5c7cfa;
+
+    /* Calendar Grid High-Contrast Variables */
+    --calendar-border: #2e3648;
+    --calendar-border-bold: #3d4960;
+    --calendar-weekend-bg: rgba(0, 0, 0, 0.22);
+    --calendar-col-alt: rgba(255, 255, 255, 0.015);
+    --calendar-today-bg: rgba(76, 110, 245, 0.09);
+    --calendar-today-border: rgba(76, 110, 245, 0.55);
+
+    /* Accent / Brand */
+    --primary: #4c6ef5;
+    --primary-hover: #4263eb;
+    --primary-light: rgba(76, 110, 245, 0.12);
+    --primary-ring: rgba(76, 110, 245, 0.35);
+
+    /* Routine (Daily Schedule / Life) Colors */
+    --routine-color: #06b6d4;
+    --routine-bg: rgba(6, 182, 212, 0.12);
+    --routine-border: rgba(6, 182, 212, 0.3);
+
+    /* Status Colors - Refined Tone */
+    --priority-1: #20c997;
+    --priority-1-bg: rgba(32, 201, 151, 0.12);
+    --priority-2: #339af0;
+    --priority-2-bg: rgba(51, 154, 240, 0.12);
+    --priority-3: #5c7cfa;
+    --priority-3-bg: rgba(92, 124, 250, 0.12);
+    --priority-4: #fcc419;
+    --priority-4-bg: rgba(252, 196, 25, 0.12);
+    --priority-5: #ff6b6b;
+    --priority-5-bg: rgba(255, 107, 107, 0.12);
+
+    --success: #20c997;
+    --success-bg: rgba(32, 201, 151, 0.12);
+    --warning: #fcc419;
+    --warning-bg: rgba(252, 196, 25, 0.12);
+    --danger: #ff6b6b;
+    --danger-bg: rgba(255, 107, 107, 0.12);
+
+    /* Radii - Sharp & Technical */
+    --radius-sm: 4px;
+    --radius: 6px;
+    --radius-lg: 10px;
+    --radius-full: 9999px;
+
+    /* Subtle Elevation */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55);
+
+    /* Typography */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Transitions */
+    --transition-fast: 100ms ease;
+    --transition: 150ms ease;
+    --transition-smooth: 200ms ease;
+}
+
+/* Light Theme Variables */
+[data-theme="light"] {
+    --bg-color: #f6f8fb;
     --surface: #ffffff;
-    --surface-subtle: #f1f5f9;
-    --surface-hover: #f8fafc;
-    --surface-active: #e2e8f0;
+    --surface-subtle: #eff3f8;
+    --surface-hover: #e5ebf2;
+    --surface-active: #d8e1ec;
 
-    /* Typography & Text */
     --text: #0f172a;
-    --text-secondary: #475569;
+    --text-secondary: #334155;
     --text-muted: #64748b;
     --text-subtle: #94a3b8;
     --text-inverse: #ffffff;
 
-    /* Borders */
-    --border: #e2e8f0;
-    --border-subtle: #f1f5f9;
-    --border-hover: #cbd5e1;
-    --border-focus: #6366f1;
+    --border: #cbd5e1;
+    --border-subtle: #e2e8f0;
+    --border-hover: #94a3b8;
+    --border-focus: #3b5bdb;
 
-    /* Priority & Status Colors */
-    --priority-1: #0d9488;
-    --priority-1-bg: #f0fdf4;
-    --priority-2: #0284c7;
-    --priority-2-bg: #f0f9ff;
-    --priority-3: #2563eb;
-    --priority-3-bg: #eff6ff;
-    --priority-4: #d97706;
-    --priority-4-bg: #fffbeb;
-    --priority-5: #e11d48;
-    --priority-5-bg: #fff1f2;
+    /* Calendar Grid High-Contrast Variables in Light */
+    --calendar-border: #cbd5e1;
+    --calendar-border-bold: #94a3b8;
+    --calendar-weekend-bg: rgba(241, 245, 249, 0.7);
+    --calendar-col-alt: rgba(248, 250, 252, 0.5);
+    --calendar-today-bg: rgba(59, 91, 219, 0.08);
+    --calendar-today-border: rgba(59, 91, 219, 0.6);
 
-    --success: #10b981;
-    --success-bg: #ecfdf5;
-    --warning: #f59e0b;
-    --warning-bg: #fffbeb;
-    --danger: #ef4444;
-    --danger-bg: #fef2f2;
+    --primary: #3b5bdb;
+    --primary-hover: #364fc7;
+    --primary-light: #edf2ff;
+    --primary-ring: rgba(59, 91, 219, 0.25);
 
-    /* Radii */
-    --radius-sm: 6px;
-    --radius: 10px;
-    --radius-lg: 16px;
-    --radius-full: 9999px;
+    /* Routine (Daily Schedule / Life) Colors in Light */
+    --routine-color: #0891b2;
+    --routine-bg: #ecfeff;
+    --routine-border: rgba(8, 145, 178, 0.25);
 
-    /* Elevation Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    --priority-1: #0ca678;
+    --priority-1-bg: #e6fcf5;
+    --priority-2: #1c7ed6;
+    --priority-2-bg: #e7f5ff;
+    --priority-3: #4263eb;
+    --priority-3-bg: #edf2ff;
+    --priority-4: #e67700;
+    --priority-4-bg: #fff9db;
+    --priority-5: #e03131;
+    --priority-5-bg: #fff5f5;
 
-    /* Transitions */
-    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --success: #0ca678;
+    --success-bg: #e6fcf5;
+    --warning: #f59f00;
+    --warning-bg: #fff9db;
+    --danger: #e03131;
+    --danger-bg: #fff5f5;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 10px 20px -4px rgba(0, 0, 0, 0.1);
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -81,11 +158,11 @@ body {
     display: flex;
     height: 100vh;
     overflow: hidden;
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.5;
 }
 
-/* Custom Scrollbars */
+/* Custom Scrollbars - Minimal */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -94,9 +171,9 @@ body {
     background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--border-hover);
     border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: var(--text-muted);
 }

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Locked Blocker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            width: 320px;
+            background: #111318;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 14px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #323b4c;
+            margin-bottom: 12px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.05em;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #20c997;
+            box-shadow: 0 0 6px #20c997;
+        }
+        .status-dot.disconnected {
+            background: #ff6b6b;
+            box-shadow: 0 0 6px #ff6b6b;
+        }
+        .status-text {
+            font-size: 11px;
+            color: #8492a6;
+        }
+        .rules-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+        }
+        .rule-item {
+            background: #181b22;
+            border: 1px solid #323b4c;
+            border-radius: 6px;
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .rule-target {
+            font-family: monospace;
+            font-size: 12px;
+            color: #f8fafc;
+            max-width: 170px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .rule-time {
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: 700;
+            color: #ff6b6b;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 16px 8px;
+            font-size: 12px;
+            color: #8492a6;
+            background: #181b22;
+            border-radius: 6px;
+            border: 1px dashed #323b4c;
+            margin-bottom: 12px;
+        }
+        .btn-open {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            background: #4c6ef5;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-open:hover {
+            background: #4263eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="brand">
+            <span>🛡️ LOCKED</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <div id="status-indicator" class="status-dot"></div>
+            <span id="status-label" class="status-text">Connected</span>
+        </div>
+    </div>
+
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #8492a6; margin-bottom: 8px;">
+        Active Hard Locks
+    </div>
+
+    <div id="rules-container" class="rules-list">
+        <div class="empty-state">Loading active rules...</div>
+    </div>
+
+    <button id="btn-open-app" class="btn-open">Open Locked Dashboard</button>
+
+    <script src="popup.js"></script>
+</body>
+</html>
+

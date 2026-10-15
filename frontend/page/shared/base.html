@@ -1,65 +1,173 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Locked - Study Toolkit</title>
-    <link rel="stylesheet" href="/static/style/variables.css?v=4.0">
-    <link rel="stylesheet" href="/static/style/layout.css?v=4.0">
-    <link rel="stylesheet" href="/static/style/components.css?v=4.0">
+    <title>Locked — Study & Task Environment</title>
+    <link rel="stylesheet" href="/static/style/variables.css?v=5.0">
+    <link rel="stylesheet" href="/static/style/layout.css?v=5.0">
+    <link rel="stylesheet" href="/static/style/components.css?v=5.0">
+    <link rel="stylesheet" href="/static/style/blocker.css?v=1.0">
+    <link rel="stylesheet" href="/static/style/study.css?v=1.0">
+    <link rel="stylesheet" href="/static/style/session_target.css?v=1.2">
     <link rel="icon" href="/static/material/favicon.ico" type="image/x-icon">
+
+    <!-- Anti-flicker theme loader -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('locked-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
 
     <!-- KaTeX & Marked for Math & Markdown -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked-katex-extension/lib/index.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 
 <body>
+    <!-- Hidden SVG Symbols for Crisp Icons -->
+    <svg style="display: none;">
+        <defs>
+            <g id="icon-dashboard">
+                <rect width="7" height="9" x="3" y="3" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <rect width="7" height="5" x="14" y="3" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <rect width="7" height="9" x="14" y="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <rect width="7" height="5" x="3" y="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.75"/>
+            </g>
+            <g id="icon-tasks">
+                <path d="M9 11l3 3L22 4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g id="icon-study">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 6h10M6 10h10" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </g>
+            <g id="icon-settings">
+                <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.75"/>
+            </g>
+            <g id="icon-sun">
+                <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </g>
+            <g id="icon-moon">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g id="icon-plus">
+                <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </g>
+            <g id="icon-folder">
+                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g id="icon-check">
+                <path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g id="icon-calendar">
+                <rect width="18" height="18" x="3" y="4" rx="2" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <path d="M16 2v4M8 2v4M3 10h18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </g>
+            <g id="icon-file">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M14 2v4a2 2 0 0 0 2 2h4" fill="none" stroke="currentColor" stroke-width="1.75"/>
+            </g>
+            <g id="icon-shield">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g id="icon-lock">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="1.75"/>
+            </g>
+            <g id="icon-target">
+                <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.75"/>
+                <circle cx="12" cy="12" r="2" fill="currentColor"/>
+            </g>
+        </defs>
+    </svg>
+
     <div class="app-container">
-        <!-- Modern Sidebar -->
+        <!-- Sidebar -->
         <nav class="sidebar">
             <div class="brand-header">
-                <div class="brand-icon">⚡</div>
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </div>
                 <div class="brand-info">
                     <span class="brand-name">LOCKED</span>
-                    <span class="brand-tag">Study Toolkit</span>
+                    <span class="brand-tag">v0.2</span>
                 </div>
             </div>
 
             <div class="nav-section-title">Navigation</div>
             <ul class="nav-links">
                 <li>
-                    <a href="/" class="nav-link-item" data-target="welcome">
-                        <span class="nav-icon">🏠</span>
+                    <a href="/" class="nav-link-item {% if request.url.path == '/' %}active{% endif %}" data-target="welcome">
+                        <svg><use href="#icon-dashboard"></use></svg>
                         <span>Dashboard</span>
                     </a>
                 </li>
+                {% if modules %}
+                    {% for mod in modules %}
+                    <li>
+                        <a href="{{ mod.url }}" class="nav-link-item {% if request.url.path == mod.url %}active{% endif %}" data-target="{{ mod.id }}">
+                            {% if mod.id == 'tasks' %}
+                            <svg><use href="#icon-tasks"></use></svg>
+                            {% elif mod.id == 'session_target' %}
+                            <svg><use href="#icon-target"></use></svg>
+                            {% elif mod.id == 'study' %}
+                            <svg><use href="#icon-study"></use></svg>
+                            {% elif mod.id == 'blocker' %}
+                            <svg><use href="#icon-shield"></use></svg>
+                            {% else %}
+                            <svg><use href="#icon-file"></use></svg>
+                            {% endif %}
+                            <span>{{ mod.title }}</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                {% else %}
                 <li>
-                    <a href="/tasks" class="nav-link-item" data-target="tasks">
-                        <span class="nav-icon">✅</span>
+                    <a href="/tasks" class="nav-link-item {% if request.url.path == '/tasks' %}active{% endif %}" data-target="tasks">
+                        <svg><use href="#icon-tasks"></use></svg>
                         <span>Tasks & Schedule</span>
                     </a>
                 </li>
                 <li>
-                    <a href="/study" class="nav-link-item" data-target="study">
-                        <span class="nav-icon">📚</span>
+                    <a href="/study" class="nav-link-item {% if request.url.path == '/study' %}active{% endif %}" data-target="study">
+                        <svg><use href="#icon-study"></use></svg>
                         <span>Study Workspace</span>
                     </a>
                 </li>
+                <li>
+                    <a href="/blocker" class="nav-link-item {% if request.url.path == '/blocker' %}active{% endif %}" data-target="blocker">
+                        <svg><use href="#icon-shield"></use></svg>
+                        <span>Focus Blocker</span>
+                    </a>
+                </li>
+                {% endif %}
             </ul>
 
             <div class="sidebar-footer">
-                <button id="btn-settings" class="btn outline" style="width: 100%; justify-content: flex-start;">
-                    <span>⚙️</span>
-                    <span>Settings</span>
+                <button id="btn-theme-toggle" class="sidebar-footer-btn" title="Toggle Dark / Light Theme">
+                    <svg id="theme-toggle-icon"><use href="#icon-sun"></use></svg>
+                    <span id="theme-toggle-label">Theme</span>
+                </button>
+                <button id="btn-settings" class="sidebar-footer-btn">
+                    <svg><use href="#icon-settings"></use></svg>
+                    <span>Preferences</span>
                 </button>
             </div>
         </nav>
 
-        <!-- Main Content View -->
+        <!-- Main Content -->
         <main class="main-content">
             <div class="content-wrapper">
                 {% block content %}{% endblock %}
@@ -71,115 +179,340 @@
 
         <!-- Task Drawer (Add & Edit Task) -->
         <div class="drawer hidden" id="task-drawer">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h3 id="task-drawer-title" style="font-size: 18px; font-weight: 800; color: var(--text);">Add Task</h3>
-                <button type="button" class="btn ghost btn-sm" id="btn-close-task-drawer" style="font-size: 16px;">✕</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                <h3 id="task-drawer-title" style="font-size: 15px; font-weight: 700; color: var(--text);">Add Task</h3>
+                <button type="button" class="btn ghost btn-sm" id="btn-close-task-drawer">✕</button>
             </div>
             <form id="task-form" style="display: flex; flex-direction: column; flex: 1;">
                 <input type="hidden" name="id" id="task-id">
                 
                 <div class="form-group">
-                    <label>Task Name:</label>
-                    <input type="text" name="name" required placeholder="e.g. Implement Dijkstra Algorithm">
+                    <label>Calendar Type</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; background: var(--surface-subtle); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 500;">
+                            <input type="radio" name="calendar_type" value="routine" id="cal-type-routine" style="cursor: pointer;">
+                            <span style="color: var(--routine-color); font-weight: 600;">●</span>
+                            <span>Sinh hoạt (Routine)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; background: var(--surface-subtle); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 500;">
+                            <input type="radio" name="calendar_type" value="task" id="cal-type-task" checked style="cursor: pointer;">
+                            <span style="color: var(--primary); font-weight: 600;">●</span>
+                            <span>Nhiệm vụ (Task)</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Description (optional):</label>
-                    <textarea name="description" rows="3" placeholder="Additional notes or references..."></textarea>
+                    <label>Title / Event Name</label>
+                    <input type="text" name="name" required placeholder="e.g. Đi học CSDL / Nộp bài tập lớn">
                 </div>
 
                 <div class="form-group">
-                    <label>Start Date:</label>
-                    <input type="date" name="start_date" required>
+                    <label>Notes / Context (Optional)</label>
+                    <textarea name="description" rows="3" placeholder="References, edge cases, requirements..."></textarea>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div class="form-group">
-                        <label>Start Hour (0-23):</label>
-                        <input type="number" name="start_hour" min="0" max="23" value="8">
+                        <label>Start Date</label>
+                        <input type="date" name="start_date" required>
                     </div>
                     <div class="form-group">
-                        <label>Start Minute (0-59):</label>
-                        <input type="number" name="start_minute" min="0" max="59" value="0">
+                        <label>Start Time (HH:MM)</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <input type="number" name="start_hour" min="0" max="23" value="8" placeholder="HH">
+                            <input type="number" name="start_minute" min="0" max="59" value="0" placeholder="MM">
+                        </div>
                     </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Due Date (Deadline):</label>
-                    <input type="date" name="end_date" required>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div class="form-group">
-                        <label>Due Hour (0-23):</label>
-                        <input type="number" name="end_hour" min="0" max="23" value="23">
+                        <label>Deadline (Due Date)</label>
+                        <input type="date" name="end_date" required>
                     </div>
                     <div class="form-group">
-                        <label>Due Minute (0-59):</label>
-                        <input type="number" name="end_minute" min="0" max="59" value="59">
+                        <label>Due Time (HH:MM)</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                            <input type="number" name="end_hour" min="0" max="23" value="23" placeholder="HH">
+                            <input type="number" name="end_minute" min="0" max="59" value="59" placeholder="MM">
+                        </div>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Priority Level:</label>
+                    <label>Priority</label>
                     <select name="priority">
-                        <option value="1">1 - Lowest</option>
-                        <option value="2">2 - Low</option>
-                        <option value="3" selected>3 - Medium</option>
-                        <option value="4">4 - High</option>
-                        <option value="5">5 - Urgent / Critical</option>
+                        <option value="1">P1 — Lowest</option>
+                        <option value="2">P2 — Low</option>
+                        <option value="3" selected>P3 — Medium</option>
+                        <option value="4">P4 — High</option>
+                        <option value="5">P5 — Urgent</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label>Labels (comma separated):</label>
-                    <input type="text" name="labels" placeholder="e.g. dsa, code, homework">
+                    <label>Labels (Comma-separated)</label>
+                    <input type="text" name="labels" placeholder="dsa, graph, leetcode">
                 </div>
 
-                <div class="form-group" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 8px;">
-                    <input type="checkbox" name="done" id="task-done-input" style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="task-done-input" style="margin: 0; cursor: pointer; font-weight: 600;">Mark as completed</label>
+                <div class="form-group" style="flex-direction: row; align-items: center; gap: 8px; margin-top: 4px;">
+                    <input type="checkbox" name="done" id="task-done-input" style="width: 15px; height: 15px; cursor: pointer;">
+                    <label for="task-done-input" style="margin: 0; cursor: pointer; font-size: 13px;">Mark as completed</label>
                 </div>
 
                 <div class="drawer-actions">
-                    <button type="button" class="btn danger btn-sm hidden" id="btn-delete-task" style="margin-right: auto;">Delete Task</button>
+                    <button type="button" class="btn danger btn-sm hidden" id="btn-delete-task" style="margin-right: auto;">Delete</button>
                     <button type="button" class="btn outline" id="btn-cancel-task-drawer">Cancel</button>
                     <button type="submit" class="btn primary">Save Task</button>
                 </div>
             </form>
         </div>
 
-        <!-- Settings Modal -->
+        <!-- Preferences Modal -->
         <div class="modal-box hidden" id="settings-modal">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="font-size: 18px; font-weight: 800; color: var(--text);">Preferences & Settings</h3>
-                <button type="button" class="btn ghost btn-sm" id="btn-close-settings-modal" style="font-size: 16px;">✕</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                <h3 style="font-size: 15px; font-weight: 700; color: var(--text);">Preferences</h3>
+                <button type="button" class="btn ghost btn-sm" id="btn-close-settings-modal">✕</button>
             </div>
 
             <div class="form-group">
-                <label>Theme Accent Color:</label>
-                <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
-                    <input type="color" id="theme-color" value="#4f46e5" style="width: 44px; height: 38px; padding: 2px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer;">
-                    <span style="font-size: 13px; color: var(--text-muted);">Pick an accent color for highlights and primary buttons</span>
+                <label>Interface Theme</label>
+                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                    <button type="button" class="btn outline btn-sm" id="theme-btn-dark" style="flex: 1;">Dark</button>
+                    <button type="button" class="btn outline btn-sm" id="theme-btn-light" style="flex: 1;">Light</button>
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
-                <button type="button" class="btn outline" id="btn-cancel-settings">Close</button>
+            <div class="form-group">
+                <label>Accent Color</label>
+                <div style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+                    <input type="color" id="theme-color" value="#4c6ef5" style="width: 40px; height: 32px; padding: 2px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; background: transparent;">
+                    <span style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">Primary brand tone</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border);">
+                <button type="button" class="btn outline" id="btn-cancel-settings">Cancel</button>
                 <button type="button" class="btn primary" id="btn-save-settings">Save Changes</button>
             </div>
         </div>
 
         <!-- Toast Notifications Container -->
         <div id="toast-container"></div>
+
+        <!-- DMOJ Contest Timer Pill (Compact Floating Badge) -->
+        <div id="floating-session-widget" class="dmoj-timer-pill" title="Bấm để xem chi tiết mục tiêu phiên (DMOJ Contest Drawer)">
+            <div class="session-widget-drag-handle" style="background: transparent; border: none; padding: 0; cursor: grab; display: flex; align-items: center; gap: 6px;">
+                <span class="dmoj-pulse-dot"></span>
+                <span class="session-widget-countdown dmoj-pill-timer" id="dmoj-pill-timer">25:00</span>
+                <span class="dmoj-pill-divider"></span>
+                <span class="session-widget-drag-title-text dmoj-pill-title" id="dmoj-pill-title">Session Target</span>
+                <span class="session-widget-merged-badge dmoj-pill-badge" id="widget-merged-badge" style="display: none;">MERGED</span>
+                <span class="session-widget-todos-count dmoj-pill-todos-count" id="dmoj-pill-todos-count">(0/0)</span>
+            </div>
+            <button type="button" class="dmoj-pill-scale-badge" id="btn-inpage-scale-cycle" title="Cỡ chữ / Scale (Click đổi preset: 85% → 75% → 65% → 100%)">85%</button>
+            <button type="button" class="dmoj-pill-btn-pip btn-widget-pip" title="📌 Nổi trên Desktop (Always-on-top)">📌</button>
+            <span class="dmoj-pill-toggle-icon" title="Mở Drawer">☰</span>
+        </div>
+
+        <!-- DMOJ Contest Session Drawer Overlay & Slide-over Panel -->
+        <div id="session-drawer-overlay" class="session-drawer-overlay"></div>
+        <aside id="session-drawer" class="session-drawer" aria-label="Session Target Details">
+            <div class="session-drawer-header">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                    <div style="font-size: 16px;">🎯</div>
+                    <div style="min-width: 0;">
+                        <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);">Contest Focus Session</div>
+                        <h3 class="session-drawer-title" id="drawer-session-title">Session Target</h3>
+                    </div>
+                    <span class="session-widget-merged-badge" id="drawer-merged-badge" style="display: none;">MERGED</span>
+                </div>
+                <div class="session-drawer-header-actions">
+                    <button type="button" class="btn-drawer-action btn-widget-pip" title="📌 Nổi trên Desktop (Always-on-top over VSCode)">📌</button>
+                    <a href="/session-target" class="btn-drawer-action" title="Mở trang đầy đủ">↗</a>
+                    <button type="button" class="btn-drawer-action close" id="btn-close-session-drawer" title="Đóng Drawer (Esc)">✕</button>
+                </div>
+            </div>
+
+            <div class="session-drawer-body">
+                <!-- Big Timer Card -->
+                <div class="session-drawer-timer-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="session-widget-status-pill running" id="drawer-status-pill">
+                            <span class="session-widget-status-dot"></span>
+                            <span id="drawer-status-text">Running</span>
+                        </span>
+                        <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">
+                            Mục tiêu: <strong id="drawer-duration-text" style="color: var(--text);">25</strong> phút
+                        </span>
+                    </div>
+
+                    <div class="session-drawer-big-timer" id="drawer-countdown">25:00</div>
+
+                    <!-- Progress Bar -->
+                    <div class="session-widget-progress-bg">
+                        <div class="session-widget-progress-bar" id="drawer-progress-bar" style="width: 0%;"></div>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="session-drawer-controls">
+                        <button type="button" class="btn outline btn-sm btn-widget-toggle-pause">
+                            <span>⏸ Pause</span>
+                        </button>
+                        <button type="button" class="btn primary btn-sm btn-widget-finish" title="Complete session now">
+                            <span>✓ Finish</span>
+                        </button>
+                        <button type="button" class="btn ghost btn-sm btn-widget-abandon" id="drawer-btn-abandon" style="color: var(--danger); font-size: 11px;" title="Cancel session">
+                            <span>✕ Cancel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Merged Active Sessions Breakdown (if multi-session) -->
+                <div id="drawer-merged-chips-container" style="display: none;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">
+                        Active Merged Sessions
+                    </div>
+                    <div id="drawer-merged-chips-list" class="active-sessions-chips-row"></div>
+                </div>
+
+                <!-- Targets / Problems Checklist Section -->
+                <div class="session-drawer-section">
+                    <div class="session-drawer-section-header">
+                        <div>
+                            <span id="widget-todos-header-label" style="font-size: 12px; font-weight: 700; color: var(--text);">Contest Problems & Targets</span>
+                            <span class="session-widget-todos-count" style="font-size: 11px; font-weight: 700; color: var(--primary); margin-left: 4px;">(0/0)</span>
+                        </div>
+                        <span style="font-size: 11px; color: var(--text-muted);">Live Checklist</span>
+                    </div>
+
+                    <div class="session-widget-todos-list session-drawer-todos-list"></div>
+
+                    <!-- Add Target Input -->
+                    <div class="session-drawer-add-row">
+                        <input type="text" class="session-widget-add-todo-input" placeholder="+ Thêm mục tiêu... (Nhấn Enter)">
+                        <button type="button" class="btn ghost btn-sm session-widget-btn-add-todo" style="padding: 2px 8px;">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="session-drawer-footer">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Cỡ chữ Widget:</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <button type="button" class="btn ghost btn-sm btn-inpage-scale-dec" style="padding: 2px 6px; font-size: 10px;" title="Thu nhỏ (A-)">A−</button>
+                        <span id="inpage-widget-scale-text" style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--primary); min-width: 32px; text-align: center;">85%</span>
+                        <button type="button" class="btn ghost btn-sm btn-inpage-scale-inc" style="padding: 2px 6px; font-size: 10px;" title="Phóng to (A+)">A+</button>
+                        <button type="button" class="btn ghost btn-sm btn-inpage-scale-reset" style="padding: 2px 6px; font-size: 9px;" title="Mặc định 85%">Reset</button>
+                    </div>
+                </div>
+                <span>💡 Phím tắt: <strong>Alt + S</strong> (Tạo mục tiêu mới) | <strong>Esc</strong> (Đóng)</span>
+            </div>
+        </aside>
+
+        <!-- Quick Session Target Modal (Alt + S) -->
+        <div class="overlay hidden" id="quick-session-overlay"></div>
+        <div class="modal-box hidden" id="quick-session-modal" style="max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <h3 style="font-size: 16px; font-weight: 800; color: var(--text); margin: 0;">New Session Target</h3>
+                    <span class="quick-session-badge">Alt + S</span>
+                </div>
+                <button type="button" class="btn ghost btn-sm" id="btn-close-quick-session">✕</button>
+            </div>
+
+            <form id="quick-session-form">
+                <div class="form-group">
+                    <label>Session Name / Target:</label>
+                    <input type="text" id="quick-session-title" placeholder="e.g. Master Binary Search & Solve 3 LeetCode problems..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>Duration:</label>
+                    <div class="duration-pills-row">
+                        <button type="button" class="duration-pill" data-mins="15">15m</button>
+                        <button type="button" class="duration-pill active" data-mins="25">25m (Pomodoro)</button>
+                        <button type="button" class="duration-pill" data-mins="45">45m</button>
+                        <button type="button" class="duration-pill" data-mins="60">60m</button>
+                        <button type="button" class="duration-pill" data-mins="90">90m</button>
+                        <button type="button" class="duration-pill" data-mins="120">120m</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="number" id="quick-session-custom-mins" value="25" min="1" max="720" style="width: 80px; padding: 6px 10px; font-size: 12px;">
+                        <span style="font-size: 12px; color: var(--text-muted);">minutes</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Specific Goals / To-dos (Optional):</label>
+                    <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <input type="text" id="quick-session-todo-input" placeholder="Type a target and press Enter..." style="flex: 1;">
+                        <button type="button" class="btn outline btn-sm" id="btn-quick-add-todo">+ Add</button>
+                    </div>
+                    <div id="quick-session-todos-list" class="session-todos-builder"></div>
+                </div>
+
+                <!-- Timing Mode: Immediate vs Schedule vs Pending -->
+                <div class="form-group" style="margin-top: 14px;">
+                    <label>Timing Mode:</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 4px;">
+                        <label class="session-mode-card active" id="mode-card-immediate" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--primary); background: rgba(76, 110, 245, 0.1); border-radius: var(--radius-sm); cursor: pointer;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <input type="radio" name="quick_session_mode" value="immediate" checked style="accent-color: var(--primary);">
+                                <span style="font-size: 12px; font-weight: 700; color: var(--text);">Start Now</span>
+                            </div>
+                            <span style="font-size: 10px; color: var(--text-muted); margin-left: 20px;">Bắt đầu ngay</span>
+                        </label>
+                        <label class="session-mode-card" id="mode-card-scheduled" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); background: var(--surface-subtle); border-radius: var(--radius-sm); cursor: pointer;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <input type="radio" name="quick_session_mode" value="scheduled" style="accent-color: var(--primary);">
+                                <span style="font-size: 12px; font-weight: 700; color: var(--text);">Schedule</span>
+                            </div>
+                            <span style="font-size: 10px; color: var(--text-muted); margin-left: 20px;">Lên lịch trước</span>
+                        </label>
+                        <label class="session-mode-card" id="mode-card-pending" style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); background: var(--surface-subtle); border-radius: var(--radius-sm); cursor: pointer;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <input type="radio" name="quick_session_mode" value="pending" style="accent-color: var(--primary);">
+                                <span style="font-size: 12px; font-weight: 700; color: var(--text);">Pending</span>
+                            </div>
+                            <span style="font-size: 10px; color: var(--text-muted); margin-left: 20px;">Lưu chờ</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Schedule Datetime picker (Shown only when mode is 'scheduled') -->
+                <div id="quick-session-schedule-box" style="display: none; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-top: 8px; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text);">Scheduled Start Date & Time:</label>
+                    <input type="datetime-local" id="quick-session-scheduled-datetime" style="padding: 6px 10px; font-size: 13px; font-family: var(--font-mono); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text);">
+                    <div id="quick-session-schedule-preview" style="font-size: 11px; color: var(--primary); font-family: var(--font-mono);"></div>
+                </div>
+
+                <!-- Multi-session option: Keep existing sessions running -->
+                <div id="quick-session-concurrent-row" style="display: none; align-items: center; gap: 8px; margin-top: 12px;">
+                    <input type="checkbox" id="quick-session-keep-others" checked style="cursor: pointer; accent-color: var(--primary);">
+                    <label for="quick-session-keep-others" style="font-size: 12px; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                        Merge with active sessions (Run concurrently without pausing existing)
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); margin-top: 16px;">
+                    <button type="button" class="btn outline" id="btn-cancel-quick-session">Cancel</button>
+                    <button type="submit" class="btn primary" id="btn-submit-quick-session">Start Session Target</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Core Scripts -->
-    <script src="/static/function/app.js?v=4.0"></script>
-    {% if request.url.path == '/tasks' %}
-    <script src="/static/function/event.js?v=4.0"></script>
-    {% elif request.url.path == '/study' %}
-    <script src="/static/function/study.js?v=4.0"></script>
+    <script src="/static/function/app.js?v=5.1"></script>
+    <script src="/static/function/session_widget.js?v=1.2"></script>
+    {% if request.url.path.startswith('/tasks') %}
+    <script src="/static/function/event.js?v=5.1"></script>
+    {% elif request.url.path.startswith('/study') %}
+    <script src="/static/function/study.js?v=5.1"></script>
+    {% elif request.url.path.startswith('/session-target') %}
+    <script src="/static/function/session_target.js?v=1.1"></script>
     {% endif %}
 </body>
 

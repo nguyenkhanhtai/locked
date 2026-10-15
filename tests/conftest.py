@@ -27,6 +27,14 @@ def study_db(tmp_path):
 
 
 @pytest.fixture
+def blocker_repo(tmp_path):
+    """Provides an isolated BlockerRepository instance in a temporary directory."""
+    from modules.blocker.repository import BlockerRepository
+    db_file = str(tmp_path / "blocker_test.db")
+    return BlockerRepository(db_path=db_file)
+
+
+@pytest.fixture
 def client(tmp_path, monkeypatch):
     """
     Configures Starlette app with temporary isolated databases and settings,
@@ -43,6 +51,12 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, "study_db", test_study_db)
     monkeypatch.setattr(app_module.SettingsManager, "get_settings_path", lambda: settings_file)
 
+    from core.db import DatabaseManager
+    old_db = DatabaseManager._db_path
+    DatabaseManager.set_db_path(task_db_file)
+
     with TestClient(app_module.app, raise_server_exceptions=True) as c:
         yield c
+
+    DatabaseManager._db_path = old_db
 

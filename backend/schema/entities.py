@@ -1,62 +1,18 @@
-from dataclasses import dataclass, asdict
-from typing import List, Optional
+from dataclasses import asdict
+from typing import Any
+from modules.tasks.models import TaskEvent
+from modules.study.models import (
+    StudyProject, StudyProblem, StudyColumn,
+    StudyRecord, StudyProblemCard
+)
+from modules.blocker.models import BlockRule
 
-# --- Task Models ---
-@dataclass
-class TaskEvent:
-    id: int
-    name: str
-    description: str
-    start_date: int
-    end_date: int
-    priority: int
-    labels: str
-    done: bool
 
-# --- Study/Workspace Models ---
-@dataclass
-class StudyProject:
-    id: int
-    name: str
-    description: str
-    created_at: Optional[int] = None
-    parent_project_id: Optional[int] = None
-
-@dataclass
-class StudyProblem:
-    id: int
-    project_id: int
-    title: str
-    description: Optional[str] = ""
-    created_at: Optional[int] = None
-
-@dataclass
-class StudyColumn:
-    id: int
-    problem_id: int
-    name: str
-    order_index: Optional[int] = 0
-
-@dataclass
-class StudyRecord:
-    id: int
-    title: str
-    project_id: Optional[int] = None
-    body: Optional[str] = ""
-    created_at: Optional[int] = None
-    updated_at: Optional[int] = None
-
-@dataclass
-class StudyProblemCard:
-    id: int
-    column_id: int
-    record_id: int
-    order_index: int = 0
-    record_title: Optional[str] = None
-
-def serialize_to_dict(obj):
+def serialize_to_dict(obj: Any):
     if isinstance(obj, list):
-        return [asdict(item) for item in obj]
+        return [asdict(item) if hasattr(item, '__dataclass_fields__') else item for item in obj]
     if obj is None:
         return None
-    return asdict(obj)
+    if hasattr(obj, '__dataclass_fields__'):
+        return asdict(obj)
+    return obj

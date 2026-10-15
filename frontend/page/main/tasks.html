@@ -5,82 +5,122 @@
     <!-- Header with Actions -->
     <div class="header">
         <div>
-            <h2>Tasks & Deadlines</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Track your study milestones and manage upcoming deadlines</p>
+            <h2>Tasks & Schedule</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Track milestones, assignments, and schedule deadlines</p>
         </div>
-        <button class="btn primary" id="btn-add-task">
-            <span>+</span>
-            <span>Add Task</span>
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input type="file" id="ics-file-input" accept=".ics,text/calendar" style="display: none;">
+            <button class="btn outline" id="btn-import-ics" title="Import schedule from .ics calendar file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span>Import .ics</span>
+            </button>
+            <button class="btn outline" id="btn-export-ics" title="Export tasks to .ics calendar file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Export .ics</span>
+            </button>
+            <button class="btn primary" id="btn-add-task">
+                <svg><use href="#icon-plus"></use></svg>
+                <span>Add Task</span>
+            </button>
+        </div>
     </div>
 
-    <!-- View Switcher Tabs -->
-    <div class="tabs" style="margin-bottom: 24px;">
-        <button class="tab-btn active task-tab-btn" data-tab="list">
-            <span>📋 List View</span>
-        </button>
-        <button class="tab-btn task-tab-btn" data-tab="gantt">
-            <span>📅 Calendar & Timeline</span>
-        </button>
+    <!-- Calendar Scope Switcher & View Switcher -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+        <!-- Calendar Scope Pills -->
+        <div class="calendar-scope-bar" style="display: flex; background: var(--surface); padding: 3px; border-radius: var(--radius); border: 1px solid var(--border); gap: 4px;">
+            <button class="btn btn-sm cal-scope-btn primary" data-scope="all" style="padding: 4px 12px; font-size: 12px; font-weight: 600;">
+                <span>🌐 Tất cả</span>
+            </button>
+            <button class="btn btn-sm ghost cal-scope-btn" data-scope="routine" style="padding: 4px 12px; font-size: 12px;">
+                <span style="color: var(--routine-color); font-weight: 700;">●</span>
+                <span>Sinh hoạt (Đi học, làm...)</span>
+            </button>
+            <button class="btn btn-sm ghost cal-scope-btn" data-scope="task" style="padding: 4px 12px; font-size: 12px;">
+                <span style="color: var(--primary); font-weight: 700;">●</span>
+                <span>Nhiệm vụ & Bài tập</span>
+            </button>
+        </div>
+
+        <!-- View Switcher Tabs -->
+        <div class="tabs" style="margin-bottom: 0;">
+            <button class="tab-btn active task-tab-btn" data-tab="list">
+                <svg><use href="#icon-tasks"></use></svg>
+                <span>List</span>
+            </button>
+            <button class="tab-btn task-tab-btn" data-tab="gantt">
+                <svg><use href="#icon-calendar"></use></svg>
+                <span>Calendar Grid</span>
+            </button>
+        </div>
     </div>
 
     <!-- 1. List View Section -->
     <div id="task-tab-list" class="task-tab-content">
         <!-- Filter Toolbar -->
-        <div style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center; background: var(--surface); padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-sm); flex-wrap: wrap;">
+        <div style="display: flex; gap: 10px; margin-bottom: 16px; align-items: center; background: var(--surface); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); flex-wrap: wrap;">
             <div style="flex: 1; min-width: 220px; position: relative;">
                 <input type="text" id="task-filter-label" placeholder="Search tasks or filter by label (e.g. dsa, code)..."
-                    style="width: 100%; padding: 8px 12px 8px 34px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; outline: none;">
-                <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted); pointer-events: none;">🔍</span>
+                    style="width: 100%; padding: 6px 10px 6px 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 12px; outline: none; background: var(--surface-subtle); color: var(--text);">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
             </div>
 
-            <select id="task-filter-priority" style="padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; background: var(--surface); color: var(--text); outline: none;">
+            <select id="task-filter-priority" style="padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 12px; background: var(--surface-subtle); color: var(--text); outline: none;">
                 <option value="all">All Priorities</option>
-                <option value="5">Priority 5 (Urgent)</option>
-                <option value="4">Priority 4 (High)</option>
-                <option value="3">Priority 3 (Medium)</option>
-                <option value="2">Priority 2 (Low)</option>
-                <option value="1">Priority 1 (Lowest)</option>
+                <option value="5">P5 (Urgent)</option>
+                <option value="4">P4 (High)</option>
+                <option value="3">P3 (Medium)</option>
+                <option value="2">P2 (Low)</option>
+                <option value="1">P1 (Lowest)</option>
             </select>
 
-            <select id="task-sort" style="padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; background: var(--surface); color: var(--text); outline: none;">
-                <option value="deadline_asc">Sort: Deadline (Earliest)</option>
-                <option value="deadline_desc">Sort: Deadline (Latest)</option>
-                <option value="priority_desc">Sort: Priority (Highest)</option>
-                <option value="priority_asc">Sort: Priority (Lowest)</option>
+            <select id="task-sort" style="padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 12px; background: var(--surface-subtle); color: var(--text); outline: none;">
+                <option value="deadline_asc">Due: Earliest</option>
+                <option value="deadline_desc">Due: Latest</option>
+                <option value="priority_desc">Priority: High → Low</option>
+                <option value="priority_asc">Priority: Low → High</option>
             </select>
 
-            <select id="task-page-size" style="padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px; background: var(--surface); color: var(--text); outline: none;">
-                <option value="5">5 per page</option>
-                <option value="10" selected>10 per page</option>
-                <option value="20">20 per page</option>
-                <option value="50">50 per page</option>
+            <select id="task-page-size" style="padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 12px; background: var(--surface-subtle); color: var(--text); outline: none;">
+                <option value="5">5 / page</option>
+                <option value="10" selected>10 / page</option>
+                <option value="20">20 / page</option>
+                <option value="50">50 / page</option>
             </select>
         </div>
 
         <!-- Task List Container -->
-        <div id="task-list" class="list" style="margin-bottom: 24px;"></div>
+        <div id="task-list" class="list" style="margin-bottom: 20px;"></div>
 
         <!-- Pagination Bar -->
-        <div class="pagination" style="display: flex; justify-content: center; gap: 12px; align-items: center;">
-            <button class="btn outline btn-sm" id="btn-prev-page">← Previous</button>
-            <span id="page-info" style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">Page 1 / 1</span>
+        <div class="pagination" style="display: flex; justify-content: center; gap: 10px; align-items: center;">
+            <button class="btn outline btn-sm" id="btn-prev-page">← Prev</button>
+            <span id="page-info" style="font-size: 12px; font-weight: 500; color: var(--text-muted); font-family: var(--font-mono);">Page 1 / 1</span>
             <button class="btn outline btn-sm" id="btn-next-page">Next →</button>
         </div>
     </div>
 
-    <!-- 2. Gantt & Calendar Timeline Section -->
+    <!-- 2. Calendar Grid Section -->
     <div id="task-tab-gantt" class="task-tab-content" style="display: none;">
-        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
                 <div>
-                    <h3 style="font-size: 16px; font-weight: 800; color: var(--text); margin: 0;">Monthly Timeline</h3>
-                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Interval Partitioning scheduling visualization</p>
+                    <h3 style="font-size: 14px; font-weight: 600; color: var(--text); margin: 0;">Calendar Grid</h3>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Weekly schedule and milestone tracking</p>
                 </div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button class="btn outline btn-sm" id="gantt-prev-month">◀ Previous</button>
-                    <span id="gantt-month-display" style="font-weight: 800; min-width: 140px; text-align: center; font-size: 14px; color: var(--text);">Month Year</span>
-                    <button class="btn outline btn-sm" id="gantt-next-month">Next ▶</button>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 4px; align-items: center;">
+                        <button class="btn outline btn-sm" id="gantt-prev-month" title="Previous Month">◀</button>
+                        <button class="btn outline btn-sm" id="gantt-today-btn" title="Current Month">Today</button>
+                        <button class="btn outline btn-sm" id="gantt-next-month" title="Next Month">▶</button>
+                    </div>
+                    <span id="gantt-month-display" style="font-weight: 600; min-width: 140px; text-align: center; font-size: 13px; color: var(--text); font-family: var(--font-mono);">Month Year</span>
                 </div>
             </div>
 

@@ -14,6 +14,16 @@ def test_page_routes(client):
     assert study_res.status_code == 200
     assert "Study" in study_res.text
 
+    # Test Session Target page
+    session_res = client.get("/session-target")
+    assert session_res.status_code == 200
+    assert "Session Target" in session_res.text
+
+    # Test Session Popout page
+    popout_res = client.get("/session-widget-popout")
+    assert popout_res.status_code == 200
+    assert "Session Target Timer" in popout_res.text
+
 
 def test_removed_features_not_found(client):
     # Blocklist page should not be found or return 404
@@ -45,6 +55,8 @@ def test_settings_api(client):
 
 
 def test_static_files(client):
-    static_res = client.get("/static/style/variables.css")
-    assert static_res.status_code == 200
+    assert client.get("/static/style/variables.css").status_code == 200
+    assert client.get("/static/style/session_target.css").status_code == 200
+    assert client.get("/static/function/session_widget.js").status_code == 200
+    assert client.get("/static/function/session_target.js").status_code == 200
 

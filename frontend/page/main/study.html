@@ -3,122 +3,198 @@
 {% block content %}
 <div id="study" class="page active" style="display: flex; flex-direction: column; height: 100%;">
     <!-- Workspace Header & Breadcrumbs -->
-    <div class="header" style="flex-shrink: 0; margin-bottom: 20px;">
+    <div class="header" style="flex-shrink: 0; margin-bottom: 14px; padding-bottom: 12px;">
         <div>
             <h2>Study Workspace</h2>
-            <div id="study-breadcrumbs" style="font-size: 13px; margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--text-muted);">
+            <div id="study-breadcrumbs" style="font-size: 13px; margin-top: 4px; display: flex; align-items: center; gap: 6px; color: var(--text-muted);">
                 <!-- Dynamic breadcrumbs -->
             </div>
         </div>
     </div>
 
-    <!-- Main Workspace Views Container -->
-    <div id="study-content-area" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-
-        <!-- 1. PROJECTS VIEW -->
-        <div id="view-projects" class="study-view" style="display: none; flex-direction: column; height: 100%;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <div>
-                    <h3 style="font-size: 17px; font-weight: 800; color: var(--text); margin: 0;">Your Study Projects</h3>
-                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Organize your subjects, modules, and courses</p>
+    <!-- Main Split Layout (Hướng 3) -->
+    <div class="study-split-layout">
+        <!-- 1. LEFT PANE: EXPLORER TREE -->
+        <aside class="study-explorer-pane">
+            <div class="study-explorer-header">
+                <!-- Project Selector & Quick Create -->
+                <div class="study-project-selector-row">
+                    <select id="study-project-select" class="study-project-select" title="Switch Project">
+                        <option value="">Loading projects...</option>
+                    </select>
+                    <button class="btn outline btn-sm" id="btn-tree-new-project" title="Create New Project" style="padding: 5px 8px;">+</button>
                 </div>
-                <button class="btn primary" id="btn-create-project">
-                    <span>+</span>
-                    <span>New Project</span>
-                </button>
-            </div>
-            <div id="project-list" class="list" style="overflow-y: auto; flex: 1;"></div>
-        </div>
 
-        <!-- 2. PROJECT DETAILS VIEW -->
-        <div id="view-project-details" class="study-view" style="display: none; flex-direction: column; height: 100%;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0; flex-wrap: wrap; gap: 12px;">
-                <div>
-                    <h3 id="project-details-title" style="font-size: 18px; font-weight: 800; color: var(--text); margin: 0;">Project Details</h3>
-                    <p id="project-details-desc" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;"></p>
+                <!-- Quick Action Buttons -->
+                <div class="study-actions-row">
+                    <button class="btn outline btn-sm" id="btn-tree-add-problem" style="flex: 1;">+ Problem</button>
+                    <button class="btn primary btn-sm" id="btn-tree-add-note" style="flex: 1;">+ Note</button>
+                    <button class="btn ghost btn-sm" id="btn-tree-add-subproject" title="Add Subproject / Folder" style="padding: 4px 6px;">+ Folder</button>
                 </div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn outline btn-sm" id="btn-create-subproject">+ Sub-project</button>
-                    <button class="btn outline btn-sm" id="btn-create-problem">+ Problem</button>
-                    <button class="btn primary btn-sm" id="btn-create-project-record">+ Note / Record</button>
+
+                <!-- Filter / Search Box -->
+                <div class="study-tree-search-box">
+                    <svg class="study-tree-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="study-tree-search" class="study-tree-search-input" placeholder="Search tree & notes...">
                 </div>
             </div>
 
-            <div style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 24px; padding-right: 4px;">
-                <!-- Sub-projects section -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
-                        <span style="font-size: 14px; font-weight: 700; color: var(--text);">📁 Sub-projects</span>
+            <!-- Scrollable Explorer Hierarchy -->
+            <div id="study-tree-list" class="study-tree-body">
+                <!-- Dynamically populated tree -->
+            </div>
+        </aside>
+
+        <!-- 2. RIGHT PANE: CANVAS / WORKSPACE -->
+        <main class="study-canvas-pane">
+
+            <!-- View A: Empty / Welcome State -->
+            <div id="view-empty" class="study-canvas-view active">
+                <div class="study-empty-state">
+                    <div class="study-empty-state-icon">📝</div>
+                    <h3>DSA Study & Notes Workspace</h3>
+                    <p>Select a project, problem, or note from the Explorer on the left, or create a new one to begin studying.</p>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn outline btn-sm" id="btn-welcome-add-problem">+ New Problem</button>
+                        <button class="btn primary btn-sm" id="btn-welcome-add-note">+ New Note</button>
                     </div>
-                    <div id="subproject-list" class="list"></div>
                 </div>
+            </div>
 
-                <!-- Problems section -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
-                        <span style="font-size: 14px; font-weight: 700; color: var(--text);">📋 Problems (Kanban)</span>
+            <!-- View B: Project Overview -->
+            <div id="view-project" class="study-canvas-view">
+                <div class="canvas-header">
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em;">Project</div>
+                        <h3 id="canvas-project-title" style="margin: 0; font-size: 18px; font-weight: 800; color: var(--text);">Project Name</h3>
                     </div>
-                    <div id="problem-list" class="list"></div>
-                </div>
-
-                <!-- Records section -->
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
-                        <span style="font-size: 14px; font-weight: 700; color: var(--text);">📝 Notes & Records</span>
+                    <div class="canvas-actions">
+                        <button class="btn outline btn-sm" id="btn-proj-new-problem">+ Problem</button>
+                        <button class="btn primary btn-sm" id="btn-proj-new-note">+ Note</button>
+                        <button class="btn ghost btn-sm" id="btn-proj-delete" style="color: var(--danger);" title="Delete Project">✕ Delete</button>
                     </div>
-                    <div id="project-record-list" class="list"></div>
+                </div>
+                <div class="problem-canvas-body">
+                    <p id="canvas-project-desc" style="color: var(--text-muted); font-size: 13px; margin: 0;"></p>
+
+                    <!-- Stats Row -->
+                    <div style="display: flex; gap: 12px; margin-top: 4px;">
+                        <div style="flex: 1; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px;">
+                            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Problems</div>
+                            <div id="stat-problems-count" style="font-size: 20px; font-weight: 800; color: var(--text); margin-top: 2px;">0</div>
+                        </div>
+                        <div style="flex: 1; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px;">
+                            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Notes</div>
+                            <div id="stat-notes-count" style="font-size: 20px; font-weight: 800; color: var(--text); margin-top: 2px;">0</div>
+                        </div>
+                        <div style="flex: 1; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px;">
+                            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Subprojects</div>
+                            <div id="stat-subprojects-count" style="font-size: 20px; font-weight: 800; color: var(--text); margin-top: 2px;">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Problems Quick List -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
+                            <span style="font-size: 13px; font-weight: 700; color: var(--text);">Problems</span>
+                            <button class="btn ghost btn-sm" id="btn-quick-add-problem" style="font-size: 12px;">+ Add</button>
+                        </div>
+                        <div id="project-overview-problems" class="list"></div>
+                    </div>
+
+                    <!-- General Notes Quick List -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
+                            <span style="font-size: 13px; font-weight: 700; color: var(--text);">General Project Notes</span>
+                            <button class="btn ghost btn-sm" id="btn-quick-add-note" style="font-size: 12px;">+ Add</button>
+                        </div>
+                        <div id="project-overview-notes" class="list"></div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 3. PROBLEM VIEW (KANBAN) -->
-        <div id="view-problem" class="study-view" style="display: none; flex-direction: column; height: 100%;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0; gap: 16px;">
-                <input type="text" id="problem-title" placeholder="Problem Title..."
-                    style="font-size: 20px; font-weight: 800; border: none; background: transparent; color: var(--text); flex: 1; outline: none; border-bottom: 2px solid transparent; padding: 4px; transition: border-color var(--transition);">
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn outline btn-sm" id="btn-toggle-problem-desc">Toggle Description</button>
-                    <button class="btn primary btn-sm" id="btn-create-column">+ Add Column</button>
+            <!-- View C: Problem Sheet (Statement + Attached Notes) -->
+            <div id="view-problem" class="study-canvas-view">
+                <div class="canvas-header">
+                    <input type="text" id="canvas-problem-title" class="canvas-title-input" placeholder="Problem Title...">
+                    <div class="canvas-actions">
+                        <button class="btn outline btn-sm" id="btn-toggle-problem-desc">Edit Statement</button>
+                        <button class="btn primary btn-sm" id="btn-problem-add-note">+ Add Note</button>
+                        <button class="btn ghost btn-sm" id="btn-problem-delete" style="color: var(--danger);" title="Delete Problem">✕</button>
+                    </div>
+                </div>
+                <div class="problem-canvas-body">
+                    <!-- Problem Statement Card -->
+                    <div class="problem-statement-card">
+                        <div class="problem-statement-header">
+                            <h4>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                Problem Statement & Hypotheses
+                            </h4>
+                            <span style="font-size: 11px; color: var(--text-muted);">Markdown & LaTeX</span>
+                        </div>
+                        <div id="canvas-problem-desc-preview" class="content-md" style="min-height: 48px; cursor: pointer;"></div>
+                        <div id="canvas-problem-desc-editor-container" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px;">
+                            <textarea id="canvas-problem-desc-editor" rows="6" style="width: 100%; border-radius: var(--radius); border: 1px solid var(--border); padding: 12px; font-family: inherit; font-size: 13px; line-height: 1.6; background: var(--surface); color: var(--text); resize: vertical; outline: none;"></textarea>
+                            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                                <button type="button" class="btn outline btn-sm" id="btn-cancel-problem-desc">Cancel</button>
+                                <button type="button" class="btn primary btn-sm" id="btn-save-problem-desc">Save Statement</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Problem Notes Section (Clean Grid, No Rigid Columns!) -->
+                    <div>
+                        <div class="problem-notes-section-header">
+                            <span style="font-size: 14px; font-weight: 700; color: var(--text); display: inline-flex; align-items: center; gap: 6px;">
+                                Notes & Solutions (<span id="canvas-problem-notes-count">0</span>)
+                            </span>
+                            <button class="btn primary btn-sm" id="btn-problem-add-note-inline">+ Add Note</button>
+                        </div>
+                        <div id="canvas-problem-notes-grid" class="problem-notes-grid">
+                            <!-- Injected note cards -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Problem Description Area -->
-            <div id="problem-desc-container" style="display: flex; gap: 16px; margin-bottom: 16px; height: 160px; flex-shrink: 0;">
-                <textarea id="problem-description-editor" placeholder="Write problem statement, hypotheses, or context in markdown..."
-                    style="flex: 1; resize: none; border-radius: var(--radius); border: 1px solid var(--border); padding: 14px; font-family: inherit; font-size: 13px; outline: none; line-height: 1.6; display: none;"></textarea>
-                <div id="problem-description-preview" class="content-md"
-                    style="flex: 1; border-radius: var(--radius); border: 1px solid var(--border); padding: 14px; background: var(--surface); overflow-y: auto; display: block; cursor: text; box-shadow: var(--shadow-sm);"></div>
-            </div>
+            <!-- View D: Note Editor & Preview (Markdown + KaTeX + Mermaid) -->
+            <div id="view-note" class="study-canvas-view">
+                <div class="canvas-header">
+                    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+                        <input type="text" id="canvas-note-title" class="canvas-title-input" placeholder="Note Title...">
+                        <div id="canvas-note-breadcrumb-tag" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;"></div>
+                    </div>
+                    <div class="canvas-actions">
+                        <span id="canvas-note-save-status" style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">Saved</span>
+                        <div style="display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;">
+                            <button class="btn ghost btn-sm active" id="btn-note-view-split" style="border-radius: 0; padding: 4px 8px; font-size: 11px;">Split</button>
+                            <button class="btn ghost btn-sm" id="btn-note-view-edit" style="border-radius: 0; padding: 4px 8px; font-size: 11px;">Edit</button>
+                            <button class="btn ghost btn-sm" id="btn-note-view-preview" style="border-radius: 0; padding: 4px 8px; font-size: 11px;">Preview</button>
+                        </div>
+                        <button class="btn ghost btn-sm" id="btn-canvas-note-delete" style="color: var(--danger);" title="Delete Note">✕</button>
+                    </div>
+                </div>
 
-            <!-- Kanban Columns Container -->
-            <div id="problem-kanban" class="kanban-board">
-                <!-- Columns dynamically injected -->
-            </div>
-        </div>
+                <div class="note-workspace-container" id="canvas-note-workspace">
+                    <!-- Editor Pane -->
+                    <div class="note-editor-col" id="col-note-editor" style="position: relative;">
+                        <textarea id="canvas-note-editor" class="note-textarea" placeholder="Write your notes using Markdown, LaTeX ($...$ and $$...$$), and Mermaid diagrams (```mermaid ... ```). Type @ to link another note..."></textarea>
+                        <!-- Mentions Dropdown -->
+                        <div id="note-mention-dropdown" style="position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-xl); max-height: 250px; overflow-y: auto; z-index: 100; width: 320px; display: none; flex-direction: column;"></div>
+                    </div>
 
-        <!-- 4. RECORD VIEW (MARKDOWN & LATEX) -->
-        <div id="view-record" class="study-view" style="display: none; flex-direction: column; height: 100%;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0; gap: 16px;">
-                <input type="text" id="record-title" placeholder="Note Title..."
-                    style="font-size: 20px; font-weight: 800; border: none; background: transparent; color: var(--text); flex: 1; outline: none; border-bottom: 2px solid transparent; padding: 4px;">
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <span id="record-save-indicator" style="font-size: 12px; color: var(--text-muted);">Saved</span>
-                    <button class="btn outline btn-sm" id="btn-toggle-preview">Toggle Edit Mode</button>
+                    <!-- Preview Pane -->
+                    <div class="note-preview-col" id="col-note-preview">
+                        <div id="canvas-note-preview-content" class="content-md"></div>
+                    </div>
                 </div>
             </div>
 
-            <div style="display: flex; gap: 16px; flex: 1; min-height: 0; position: relative;">
-                <textarea id="record-editor" placeholder="Type notes using Markdown and LaTeX ($...$ for inline, $$...$$ for block). Type @ to mention..."
-                    style="flex: 1; resize: none; border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 14px; outline: none; line-height: 1.6; display: none;"></textarea>
-                
-                <!-- Mention Dropdown Menu -->
-                <div id="mention-dropdown" style="position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-xl); max-height: 250px; overflow-y: auto; z-index: 100; width: 320px; display: none; flex-direction: column;"></div>
-                
-                <div id="record-preview" class="content-md"
-                    style="flex: 1; border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; background: var(--surface); overflow-y: auto; display: block; cursor: text; box-shadow: var(--shadow-sm);"></div>
-            </div>
-        </div>
-
+        </main>
     </div>
 </div>
 

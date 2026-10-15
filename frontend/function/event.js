@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
         size: 10,
         filter: "",
         priorityFilter: "all",
+        calendarFilter: "all",
         sort: "deadline_asc"
     };
 
@@ -41,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const getTaskColor = (task) => {
         if (task.done) return '#94a3b8'; // Slate for completed tasks
+        if (task.calendar_type === 'routine') return '#06b6d4'; // Cyan for daily routine
         if (task.priority >= 5) return '#ef4444'; // Red for urgent
         if (task.priority === 4) return '#f59e0b'; // Amber for high
 
@@ -76,7 +78,37 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Month Navigation for Gantt
+    // Calendar Scope Filter (All / Routine / Task)
+    const calScopeBtns = document.querySelectorAll('.cal-scope-btn');
+    calScopeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            calScopeBtns.forEach(b => {
+                b.classList.remove('primary');
+                b.classList.add('ghost');
+            });
+            const currentBtn = e.currentTarget;
+            currentBtn.classList.add('primary');
+            currentBtn.classList.remove('ghost');
+
+            taskState.calendarFilter = currentBtn.getAttribute('data-scope') || 'all';
+            taskState.page = 1;
+            renderTasks();
+            const activeTab = document.querySelector('.task-tab-btn.active');
+            if (activeTab && activeTab.getAttribute('data-tab') === 'gantt') {
+                renderGanttChart(tasksData);
+            }
+        });
+    });
+
+    // Month Navigation for Calendar Grid
+    const ganttTodayBtn = document.getElementById("gantt-today-btn");
+    if (ganttTodayBtn) {
+        ganttTodayBtn.addEventListener("click", () => {
+            currentGanttDate = new Date();
+            currentGanttDate.setDate(1);
+            renderGanttChart(tasksData);
+        });
+    }
     if (ganttPrevMonth) {
         ganttPrevMonth.addEventListener("click", () => {
             currentGanttDate.setMonth(currentGanttDate.getMonth() - 1);
@@ -140,89 +172,147 @@ document.addEventListener("DOMContentLoaded", () => {
         const month = currentGanttDate.getMonth();
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-        const monthStart = new Date(year, month, 1);
         const numDays = new Date(year, month + 1, 0).getDate();
-        const numWeeks = Math.ceil(numDays / 7);
-        const monthEnd = new Date(year, month, numWeeks * 7 + 1);
-        const monthStartTs = Math.floor(monthStart.getTime() / 1000);
-        const monthEndTs = Math.floor(monthEnd.getTime() / 1000);
+        const monthStartTs = Math.floor(new Date(year, month, 1, 0, 0, 0).getTime() / 1000);
+        const monthEndTs = Math.floor(new Date(year, month, numDays, 23, 59, 59).getTime() / 1000);
 
-        const monthlyTasks = tasks.filter(t => {
+        let scopedTasks = [...tasks];
+        if (taskState.calendarFilter && taskState.calendarFilter !== "all") {
+            scopedTasks = scopedTasks.filter(t => (t.calendar_type || "task") === taskState.calendarFilter);
+        }
+
+        const monthlyTasks = scopedTasks.filter(t => {
             let startTs = t.start_date || (t.end_date - 86400 * 3);
             if (startTs > t.end_date) startTs = t.end_date - 86400;
-            return startTs < monthEndTs && t.end_date >= monthStartTs;
+            return startTs <= monthEndTs && t.end_date >= monthStartTs;
         });
 
-        ganttMonthDisplay.innerText = `${monthNames[month]} ${year} (${monthlyTasks.length} tasks)`;
+        ganttMonthDisplay.innerText = `${monthNames[month]} ${year} (${monthlyTasks.length} task${monthlyTasks.length === 1 ? '' : 's'})`;
 
-        let html = `<div style="display: flex; flex-direction: column; gap: 16px;">`;
+        renderWeekGrid(monthlyTasks, year, month, numDays);
+    };
 
-        for (let w = 0; w < numWeeks; w++) {
-            const weekStartDay = w * 7 + 1;
-            const weekEndDay = weekStartDay + 6;
+    const renderWeekGrid = (monthlyTasks, year, month, numDays) => {
+        // Find first Monday on or before day 1
+        const firstOfMonth = new Date(year, month, 1);
+        let firstDayOfWeek = firstOfMonth.getDay(); // 0 is Sun, 1 is Mon...
+        let diffToMonday = (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1);
+        let startMonday = new Date(year, month, 1 - diffToMonday, 0, 0, 0);
 
-            const wStartObj = new Date(year, month, weekStartDay);
-            const wEndObj = new Date(year, month, weekEndDay + 1);
-            const wStartTs = Math.floor(wStartObj.getTime() / 1000);
-            const wEndTs = Math.floor(wEndObj.getTime() / 1000);
+        // Find last Sunday on or after last day of month
+        const lastOfMonth = new Date(year, month, numDays);
+        let lastDayOfWeek = lastOfMonth.getDay();
+        let diffToSunday = (lastDayOfWeek === 0 ? 0 : 7 - lastDayOfWeek);
+        let endSunday = new Date(year, month, numDays + diffToSunday, 23, 59, 59);
+
+        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const today = new Date();
+        const pad = n => String(n).padStart(2, '0');
+
+        let weeksHtml = '<div style="display: flex; flex-direction: column; gap: 16px;">';
+        let currentIter = new Date(startMonday.getTime());
+        let weekIndex = 1;
+
+        while (currentIter < endSunday) {
+            const wStart = new Date(currentIter.getTime());
+            wStart.setHours(0, 0, 0, 0);
+            const wEnd = new Date(currentIter.getTime() + 6 * 86400 * 1000);
+            wEnd.setHours(23, 59, 59, 999);
+
+            const wStartTs = Math.floor(wStart.getTime() / 1000);
+            const wEndTs = Math.floor(wEnd.getTime() / 1000);
             const weekDuration = 7 * 86400;
 
-            const wStartDisplay = new Date(year, month, weekStartDay);
-            const wEndDisplay = new Date(year, month, weekEndDay);
-            const titleStart = `${wStartDisplay.getDate()}/${wStartDisplay.getMonth() + 1}`;
-            const titleEnd = `${wEndDisplay.getDate()}/${wEndDisplay.getMonth() + 1}`;
+            const wTitleStart = `${pad(wStart.getDate())}/${pad(wStart.getMonth() + 1)}`;
+            const wTitleEnd = `${pad(wEnd.getDate())}/${pad(wEnd.getMonth() + 1)}`;
 
-            html += `<div class="gantt-week">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <span style="font-weight: 700; font-size: 13px; color: var(--text);">Week ${w + 1} (${titleStart} - ${titleEnd})</span>
-                        </div>
-                        <div style="position: relative; min-height: 70px; padding-top: 24px;">`;
+            let weekDaysHeaderHtml = '';
+            let weekGridColsHtml = '';
+            const dayColPct = 100 / 7;
 
-            // Draw 7-day grid lines
             for (let i = 0; i < 7; i++) {
-                const dayObj = new Date(year, month, weekStartDay + i);
-                const dNum = dayObj.getDate();
-                const dMonth = dayObj.getMonth() + 1;
-                const dDayOfWeek = dayObj.getDay();
-                const isExtraDay = dayObj.getMonth() !== month;
-                const isWeekend = dDayOfWeek === 0 || dDayOfWeek === 6;
+                const dayObj = new Date(wStart.getTime() + i * 86400 * 1000);
+                const dMonth = dayObj.getMonth();
+                const dDate = dayObj.getDate();
+                const isOutsideMonth = (dMonth !== month);
+                const isWeekend = (i >= 5);
+                const isToday = (today.getFullYear() === dayObj.getFullYear() &&
+                                 today.getMonth() === dMonth &&
+                                 today.getDate() === dDate);
 
-                const leftPct = (i / 7) * 100;
-                let bgStyle = isExtraDay ? 'background: rgba(0,0,0,0.02);' : (isWeekend ? 'background: rgba(79, 70, 229, 0.03);' : '');
-                const textColor = isExtraDay ? '#cbd5e1' : (isWeekend ? 'var(--primary)' : 'var(--text-muted)');
+                const textCol = isOutsideMonth ? 'var(--text-subtle)' : (isToday ? 'var(--primary)' : 'var(--text)');
+                const headerBg = isToday ? 'var(--primary-light)' : (isWeekend ? 'var(--calendar-weekend-bg)' : '');
 
-                html += `
-                    <div style="position: absolute; top: 0; bottom: 0; left: ${leftPct}%; border-left: 1px solid var(--border); width: ${100 / 7}%; ${bgStyle} pointer-events: none;">
-                        <span style="position: absolute; top: 2px; left: 6px; font-size: 11px; color: ${textColor}; font-weight: 700;">${dNum}/${dMonth}</span>
+                weekDaysHeaderHtml += `
+                    <div class="gantt-week-day-title ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}" 
+                         style="${headerBg ? 'background:' + headerBg + ';' : ''} ${i === 6 ? 'border-right: none;' : ''}">
+                        <span style="font-weight: 700; color: ${textCol}; font-size: 11px;">${dayNames[i]}</span>
+                        <span style="color: ${textCol}; opacity: 0.85; margin-left: 4px; font-weight: 600;">${pad(dDate)}/${pad(dMonth + 1)}</span>
                     </div>
+                `;
+
+                let colStyle = `left: ${i * dayColPct}%; width: ${dayColPct}%;`;
+                if (i === 6) {
+                    colStyle += ' border-right: none;';
+                }
+                if (isOutsideMonth) {
+                    colStyle += ' background: rgba(0, 0, 0, 0.22); opacity: 0.7;';
+                } else if (isToday) {
+                    colStyle += ' background: var(--calendar-today-bg); border-right: 1px solid var(--calendar-today-border); border-left: 1px solid var(--calendar-today-border);';
+                } else if (isWeekend) {
+                    colStyle += ' background: var(--calendar-weekend-bg);';
+                } else if (i % 2 === 1) {
+                    colStyle += ' background: var(--calendar-col-alt);';
+                }
+
+                weekGridColsHtml += `
+                    <div class="gantt-grid-column ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}"
+                         style="${colStyle}"></div>
                 `;
             }
 
-            // Tasks in this week
             const weekTasks = monthlyTasks.filter(t => {
                 let startTs = t.start_date || (t.end_date - 86400 * 3);
                 if (startTs > t.end_date) startTs = t.end_date - 86400;
-                return startTs < wEndTs && t.end_date >= wStartTs;
+                return startTs <= wEndTs && t.end_date >= wStartTs;
             });
 
+            let weekBarsHtml = '';
+            let bodyHeight = 70;
+
             if (weekTasks.length === 0) {
-                html += `<div style="text-align: center; color: var(--text-subtle); font-size: 12px; padding: 14px 0; font-style: italic;">No tasks scheduled for this week</div>`;
+                weekBarsHtml = `
+                    <div style="position: relative; z-index: 5; text-align: center; color: var(--text-subtle); font-size: 12px; padding: 24px 0; font-style: italic;">
+                        No tasks scheduled for this week
+                    </div>
+                `;
             } else {
-                // Greedy Interval Partitioning via Min-Heap
                 const tasksWithBounds = weekTasks.map(t => {
                     let taskStart = t.start_date || (t.end_date - 86400 * 3);
                     if (taskStart > t.end_date) taskStart = t.end_date - 86400;
+                    const clampedStart = Math.max(taskStart, wStartTs);
+                    const clampedEnd = Math.min(t.end_date, wEndTs);
+
+                    // 2 hours visual buffer for interval partitioning to prevent label overlaps
+                    const minVisualSec = 7200;
+                    const visualEnd = Math.max(clampedEnd, clampedStart + minVisualSec);
+
                     return {
                         ...t,
-                        clampedStart: Math.max(taskStart, wStartTs),
-                        clampedEnd: Math.min(t.end_date, wEndTs)
+                        clampedStart,
+                        clampedEnd,
+                        visualEnd,
+                        origStart: taskStart,
+                        origEnd: t.end_date
                     };
                 });
+
+                // Sort tasks by start timestamp
                 tasksWithBounds.sort((a, b) => a.clampedStart - b.clampedStart);
 
+                // MinHeap Interval Partitioning using visualEnd
                 const heap = new MinHeap();
                 let maxRow = 0;
-
                 tasksWithBounds.forEach(t => {
                     let assignedRow = 0;
                     if (heap.size() > 0 && heap.peek().endTime <= t.clampedStart) {
@@ -231,47 +321,100 @@ document.addEventListener("DOMContentLoaded", () => {
                     } else {
                         assignedRow = maxRow++;
                     }
-                    heap.push({ endTime: t.clampedEnd, row: assignedRow });
+                    heap.push({ endTime: t.visualEnd, row: assignedRow });
                     t.rowIndex = assignedRow;
                 });
 
                 const totalRows = Math.max(maxRow, 1);
-                const rowHeight = 36;
-                const containerHeight = totalRows * rowHeight + 28;
-
-                html = html.replace(`min-height: 70px;`, `min-height: ${containerHeight}px;`);
+                const rowHeight = 32;
+                bodyHeight = Math.max(totalRows * rowHeight + 18, 70);
 
                 tasksWithBounds.forEach(t => {
                     const startOffset = t.clampedStart - wStartTs;
-                    const duration = Math.max(t.clampedEnd - t.clampedStart, 3600 * 4); // Minimum visible width
+                    const duration = t.clampedEnd - t.clampedStart;
 
+                    // Exact proportional position and width according to real duration
                     let leftPct = (startOffset / weekDuration) * 100;
                     let widthPct = (duration / weekDuration) * 100;
 
+                    if (leftPct + widthPct > 100) {
+                        widthPct = Math.max(0.5, 100 - leftPct);
+                    }
                     if (leftPct < 0) leftPct = 0;
-                    if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
 
-                    const topPx = 26 + (t.rowIndex * rowHeight);
+                    const topPx = 9 + (t.rowIndex * rowHeight);
                     const color = getTaskColor(t);
 
-                    html += `
-                        <div class="gantt-bar" onclick="editTask(${t.id})"
+                    const dStart = new Date(t.origStart * 1000);
+                    const dEnd = new Date(t.origEnd * 1000);
+
+                    const startFmt = `${pad(dStart.getDate())}/${pad(dStart.getMonth() + 1)} ${pad(dStart.getHours())}:${pad(dStart.getMinutes())}`;
+                    const endFmt = `${pad(dEnd.getDate())}/${pad(dEnd.getMonth() + 1)} ${pad(dEnd.getHours())}:${pad(dEnd.getMinutes())}`;
+
+                    const isSingleDay = (dStart.toDateString() === dEnd.toDateString());
+                    let timeBadge = '';
+                    if (isSingleDay) {
+                        timeBadge = `${pad(dStart.getHours())}:${pad(dStart.getMinutes())} - ${pad(dEnd.getHours())}:${pad(dEnd.getMinutes())}`;
+                    } else {
+                        timeBadge = `Due ${pad(dEnd.getDate())}/${pad(dEnd.getMonth() + 1)}`;
+                    }
+
+                    const continuesLeft = t.origStart < wStartTs;
+                    const continuesRight = t.origEnd > wEndTs;
+
+                    weekBarsHtml += `
+                        <div class="gantt-bar ${t.calendar_type === 'routine' ? 'routine-bar' : ''}" onclick="editTask(${t.id})"
                              style="left: ${leftPct}%; width: ${widthPct}%; top: ${topPx}px; background: ${color};"
-                             title="${t.name} (Priority: ${t.priority})">
-                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                             title="${t.name} (P${t.priority})${t.done ? ' [Completed]' : ''}&#10;Start: ${startFmt}&#10;Due: ${endFmt}">
+                            ${continuesLeft ? '<span style="font-size: 9px; opacity: 0.85;">◀</span>' : ''}
+                            <span class="gantt-bar-title" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 ${t.done ? '✓ ' : ''}${t.name}
                             </span>
+                            <span class="gantt-bar-time" style="font-size: 10px; margin-left: 4px; white-space: nowrap; opacity: 0.9;">${timeBadge}</span>
+                            ${continuesRight ? '<span style="font-size: 9px; opacity: 0.85;">▶</span>' : ''}
                         </div>
                     `;
                 });
             }
 
-            html += `   </div>
-                    </div>`;
+            const nowTs = Math.floor(today.getTime() / 1000);
+            const isCurrentWeek = (nowTs >= wStartTs && nowTs <= wEndTs);
+            let nowLineHtml = '';
+            if (isCurrentWeek) {
+                const nowOffset = nowTs - wStartTs;
+                const nowLeftPct = (nowOffset / weekDuration) * 100;
+                const nowFmt = `${pad(today.getHours())}:${pad(today.getMinutes())}`;
+                nowLineHtml = `
+                    <div class="gantt-now-line" style="left: ${nowLeftPct}%;" title="Current Time: ${nowFmt}">
+                        <div class="gantt-now-dot"></div>
+                        <div class="gantt-now-badge">NOW ${nowFmt}</div>
+                    </div>
+                `;
+            }
+
+            weeksHtml += `
+                <div class="gantt-week">
+                    <div class="gantt-week-header">
+                        <span>Week ${weekIndex} (${wTitleStart} - ${wTitleEnd})</span>
+                        <span style="font-size: 11px; opacity: 0.8; font-weight: 500;">${weekTasks.length} task${weekTasks.length === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="gantt-week-days">
+                        ${weekDaysHeaderHtml}
+                    </div>
+                    <div class="gantt-week-body" style="min-height: ${bodyHeight}px;">
+                        ${weekGridColsHtml}
+                        ${nowLineHtml}
+                        ${weekBarsHtml}
+                    </div>
+                </div>
+            `;
+
+            currentIter.setDate(currentIter.getDate() + 7);
+            weekIndex++;
         }
 
-        html += `</div>`;
-        ganttChartContent.innerHTML = html;
+        weeksHtml += '</div>';
+        ganttChartContent.innerHTML = weeksHtml;
     };
 
     // Load Tasks from API
@@ -297,6 +440,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!taskList) return;
 
         let filtered = [...tasksData];
+
+        // Calendar scope filter (all / routine / task)
+        if (taskState.calendarFilter && taskState.calendarFilter !== "all") {
+            filtered = filtered.filter(t => (t.calendar_type || "task") === taskState.calendarFilter);
+        }
 
         // Search & Label filter
         if (taskState.filter) {
@@ -333,18 +481,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const start = (taskState.page - 1) * taskState.size;
         const pageItems = filtered.slice(start, start + taskState.size);
 
-        if (pageInfo) pageInfo.innerText = `Page ${taskState.page} of ${totalPages} (${totalItems} tasks)`;
+        if (pageInfo) pageInfo.innerText = `Page ${taskState.page} of ${totalPages} (${totalItems} items)`;
         if (btnPrevPage) btnPrevPage.disabled = taskState.page <= 1;
         if (btnNextPage) btnNextPage.disabled = taskState.page >= totalPages;
 
         taskList.innerHTML = "";
         if (pageItems.length === 0) {
+            const scopeLabel = taskState.calendarFilter === 'routine' ? 'sinh hoạt (routine)' : (taskState.calendarFilter === 'task' ? 'nhiệm vụ (task)' : '');
             taskList.innerHTML = `
                 <div style="text-align: center; padding: 48px 20px; background: var(--surface); border-radius: var(--radius); border: 1px dashed var(--border);">
-                    <div style="font-size: 36px; margin-bottom: 12px;">📝</div>
-                    <h4 style="font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px;">No tasks found</h4>
-                    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Create a new task or adjust your filters above.</p>
-                    <button class="btn primary btn-sm" onclick="document.getElementById('btn-add-task').click()">+ Create Task</button>
+                    <div style="color: var(--text-muted); margin-bottom: 12px;">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                        </svg>
+                    </div>
+                    <h4 style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px;">No items found</h4>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">Chưa có mục ${scopeLabel} nào trong khoảng này.</p>
+                    <button class="btn primary btn-sm" onclick="document.getElementById('btn-add-task').click()">+ Add Item</button>
                 </div>
             `;
             return;
@@ -357,30 +510,37 @@ document.addEventListener("DOMContentLoaded", () => {
             let tagsHtml = "";
             if (t.labels) {
                 tagsHtml = t.labels.split(",").map(l => l.trim()).filter(Boolean).map(l =>
-                    `<span class="tag-label">${l}</span>`
+                    `<span class="tag">${l}</span>`
                 ).join(" ");
             }
 
             const endDate = new Date(t.end_date * 1000);
             const dateFormatted = `${endDate.getDate()}/${endDate.getMonth() + 1}/${endDate.getFullYear()} ${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
+            const badgeHtml = t.calendar_type === 'routine'
+                ? `<span class="badge badge-routine" title="Lịch sinh hoạt hằng ngày">🕒 Sinh hoạt</span>`
+                : `<span class="badge badge-p${t.priority}">P${t.priority}</span>`;
+
             taskList.innerHTML += `
                 <article class="task-row ${rowClass}" onclick="editTask(${t.id})" style="cursor: pointer;">
-                    <div style="display: flex; flex-direction: column; overflow: hidden;">
-                        <div class="task-title">${t.name}</div>
-                        <div class="task-desc">${t.description || "No description"}</div>
+                    <div style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
+                        <div class="task-title" style="font-size: 13px; font-weight: 500;">
+                            ${t.calendar_type === 'routine' ? '<span style="color: var(--routine-color); font-size: 11px; margin-right: 4px;">🕒</span>' : ''}${t.name}
+                        </div>
+                        <div class="task-desc" style="font-size: 12px; color: var(--text-muted);">${t.description || "No description"}</div>
                     </div>
                     <div>
-                        <span class="badge priority-badge-${t.priority}">Priority ${t.priority}</span>
+                        ${badgeHtml}
                     </div>
                     <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                         ${tagsHtml || '<span style="font-size: 11px; color: var(--text-subtle);">None</span>'}
                     </div>
-                    <div class="task-deadline">
-                        ⏳ ${dateFormatted}
+                    <div class="task-deadline" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>${dateFormatted}</span>
                     </div>
                     <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-                        <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleTaskDone(${t.id}, this.checked)" ${doneChecked} style="width: 18px; height: 18px; cursor: pointer;">
+                        <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleTaskDone(${t.id}, this.checked)" ${doneChecked} style="width: 15px; height: 15px; cursor: pointer;">
                         <button class="btn ghost btn-sm hover-only" onclick="event.stopPropagation(); deleteTaskDirect(${t.id})" title="Delete" style="padding: 2px 6px; color: var(--danger);">✕</button>
                     </div>
                 </article>
@@ -416,6 +576,13 @@ document.addEventListener("DOMContentLoaded", () => {
             if (taskIdInput) taskIdInput.value = "";
             if (taskForm) {
                 taskForm.reset();
+                if (taskState.calendarFilter === "routine") {
+                    const rBtn = document.getElementById("cal-type-routine");
+                    if (rBtn) rBtn.checked = true;
+                } else {
+                    const tBtn = document.getElementById("cal-type-task");
+                    if (tBtn) tBtn.checked = true;
+                }
                 const now = new Date();
                 const pad = n => n.toString().padStart(2, '0');
                 taskForm.elements["start_date"].value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -449,6 +616,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const priority = parseInt(formData.get("priority")) || 1;
                 const labels = formData.get("labels").trim();
                 const done = formData.get("done") === "on";
+                const calendar_type = formData.get("calendar_type") || "task";
 
                 const startDateStr = formData.get("start_date");
                 const startHour = parseInt(formData.get("start_hour")) || 0;
@@ -472,7 +640,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     end_date,
                     priority,
                     labels,
-                    done
+                    done,
+                    calendar_type
                 };
 
                 const res = await fetch("/api/events", {
@@ -544,6 +713,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 taskForm.elements["labels"].value = t.labels || "";
                 taskForm.elements["done"].checked = !!t.done;
 
+                if (t.calendar_type === "routine") {
+                    const rBtn = document.getElementById("cal-type-routine");
+                    if (rBtn) rBtn.checked = true;
+                } else {
+                    const tBtn = document.getElementById("cal-type-task");
+                    if (tBtn) tBtn.checked = true;
+                }
+
                 const pad = n => n.toString().padStart(2, '0');
                 const d = new Date(t.end_date * 1000);
                 taskForm.elements["end_date"].value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -570,6 +747,97 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Error editing task:", err);
         }
     };
+
+    // ICS Import & Export Handlers
+    const btnImportIcs = document.getElementById("btn-import-ics");
+    const btnExportIcs = document.getElementById("btn-export-ics");
+    const icsFileInput = document.getElementById("ics-file-input");
+
+    const uploadIcsFile = async (file) => {
+        try {
+            if (window.showToast) window.showToast("Importing .ics schedule...", "info");
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const targetCal = (taskState.calendarFilter && taskState.calendarFilter !== "all") ? taskState.calendarFilter : "task";
+            const res = await fetch(`/api/events/import-ics?calendar_type=${targetCal}`, {
+                method: "POST",
+                body: formData
+            });
+            const json = await res.json();
+
+            if (res.ok) {
+                if (window.showToast) window.showToast(json.message || `Imported ${json.count || 0} tasks!`, "success");
+                window.loadTasks();
+            } else {
+                if (window.showToast) window.showToast(json.message || "Failed to import .ics", "error");
+            }
+        } catch (err) {
+            console.error("Error importing .ics:", err);
+            if (window.showToast) window.showToast("Network error importing .ics file", "error");
+        }
+    };
+
+    if (btnImportIcs && icsFileInput) {
+        btnImportIcs.addEventListener("click", () => {
+            icsFileInput.click();
+        });
+
+        icsFileInput.addEventListener("change", async () => {
+            const file = icsFileInput.files[0];
+            if (!file) return;
+            await uploadIcsFile(file);
+            icsFileInput.value = "";
+        });
+    }
+
+    if (btnExportIcs) {
+        btnExportIcs.addEventListener("click", () => {
+            const calParam = (taskState.calendarFilter && taskState.calendarFilter !== "all") ? `?calendar_type=${taskState.calendarFilter}` : "";
+            window.location.href = `/api/events/export-ics${calParam}`;
+        });
+    }
+
+    // Drag & Drop .ics onto Tasks Page
+    const tasksPageEl = document.getElementById("tasks");
+    if (tasksPageEl) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            tasksPageEl.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                tasksPageEl.style.outline = "2px dashed var(--primary)";
+                tasksPageEl.style.outlineOffset = "-4px";
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            tasksPageEl.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                tasksPageEl.style.outline = "none";
+            });
+        });
+
+        tasksPageEl.addEventListener("drop", async (e) => {
+            const dt = e.dataTransfer;
+            const files = dt ? dt.files : null;
+            if (files && files.length > 0) {
+                const file = files[0];
+                if (file.name.toLowerCase().endsWith(".ics") || file.type.includes("calendar")) {
+                    await uploadIcsFile(file);
+                } else {
+                    if (window.showToast) window.showToast("Please drop a valid .ics calendar file", "warning");
+                }
+            }
+        });
+    }
+
+    // Auto-update current time red indicator every 60 seconds
+    setInterval(() => {
+        if (tasksData && tasksData.length >= 0) {
+            renderGanttChart(tasksData);
+        }
+    }, 60000);
 
     window.loadTasks();
 });

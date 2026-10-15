@@ -1,0 +1,151 @@
+{% extends "shared/base.html" %}
+
+{% block content %}
+<div id="session-target" class="page active" style="display: flex; flex-direction: column; gap: 20px;">
+    <!-- Page Header -->
+    <div class="header" style="margin-bottom: 8px;">
+        <div>
+            <h2>Session Target</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">
+                Định nghĩa thời gian cho từng phiên và đặt mục tiêu cụ thể cần đạt được (phím tắt <kbd style="background: var(--surface-subtle); padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-family: var(--font-mono); font-size: 11px;">Alt + S</kbd>)
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn primary" id="btn-page-new-session" onclick="window.openQuickSessionModal()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>New Session Target</span>
+                <span class="quick-session-badge" style="margin-left: 4px; background: rgba(255,255,255,0.2); color: #fff; border: none;">Alt + S</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Overview Cards -->
+    <div class="session-stats-grid">
+        <div class="session-stat-card">
+            <span class="session-stat-label">Total Focused Time</span>
+            <span class="session-stat-value" id="page-stat-total-time">0m</span>
+            <span class="session-stat-sub">Across all completed sessions</span>
+        </div>
+        <div class="session-stat-card">
+            <span class="session-stat-label">Completed Sessions</span>
+            <span class="session-stat-value" id="page-stat-completed">0</span>
+            <span class="session-stat-sub">Fully finished targets</span>
+        </div>
+        <div class="session-stat-card">
+            <span class="session-stat-label">Today's Focus</span>
+            <span class="session-stat-value" id="page-stat-today-time" style="color: var(--primary);">0m</span>
+            <span class="session-stat-sub" id="page-stat-today-sessions">0 sessions today</span>
+        </div>
+        <div class="session-stat-card">
+            <span class="session-stat-label">Goal Completion Rate</span>
+            <span class="session-stat-value" id="page-stat-goal-rate" style="color: var(--success);">100%</span>
+            <span class="session-stat-sub" id="page-stat-todos-ratio">0/0 goals met</span>
+        </div>
+    </div>
+
+    <!-- Active Session Spotlight Section (Visible when a session is active) -->
+    <div id="active-session-container" style="display: none;">
+        <div class="active-session-spotlight">
+            <div class="active-session-header">
+                <div>
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 4px;">
+                        <span id="spotlight-subheading">Active Session In Progress</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <h3 class="active-session-title" id="spotlight-title">Session Title</h3>
+                        <span class="session-widget-merged-badge" id="spotlight-merged-badge" style="display: none;">Merged</span>
+                    </div>
+                    <div id="spotlight-active-sessions-chips" class="active-sessions-chips-row" style="display: none;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span id="spotlight-status-pill" class="session-widget-status-pill running">
+                        <span class="session-widget-status-dot"></span>
+                        <span id="spotlight-status-text">Running</span>
+                    </span>
+                    <button class="btn outline btn-sm" id="btn-spotlight-pip" onclick="window.toggleDesktopPiP ? window.toggleDesktopPiP() : null" title="Pop out floating timer always-on-top over VSCode & other apps">
+                        📌 Nổi trên Desktop (PiP)
+                    </button>
+                    <button class="btn outline btn-sm" id="btn-spotlight-abandon" style="color: var(--danger); border-color: rgba(255,107,107,0.3);">
+                        Cancel Session
+                    </button>
+                </div>
+            </div>
+
+            <div class="active-session-grid">
+                <!-- Left: Big Countdown Box -->
+                <div class="active-session-timer-box">
+                    <div class="active-session-big-timer" id="spotlight-timer">25:00</div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; font-family: var(--font-mono);">
+                        Target: <span id="spotlight-target-duration">25</span> mins
+                    </div>
+
+                    <div class="session-widget-progress-bg" style="margin-top: 14px; width: 100%;">
+                        <div class="session-widget-progress-bar" id="spotlight-progress-bar" style="width: 0%;"></div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 16px; width: 100%;">
+                        <button class="btn outline btn-sm" id="btn-spotlight-toggle" style="flex: 1;">
+                            ⏸ Pause
+                        </button>
+                        <button class="btn primary btn-sm" id="btn-spotlight-finish" style="flex: 1;">
+                            ✓ Complete
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: To-dos & Checklist -->
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
+                        <span id="spotlight-todos-heading" style="font-size: 13px; font-weight: 700; color: var(--text);">Session Targets & Checklist</span>
+                        <span id="spotlight-todos-count" style="font-size: 11px; font-weight: 600; color: var(--text-muted); font-family: var(--font-mono);">(0/0)</span>
+                    </div>
+
+                    <div id="spotlight-todos-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+                        <!-- Checkboxes injected by JS -->
+                    </div>
+
+                    <!-- Add quick goal -->
+                    <div style="display: flex; gap: 8px; margin-top: 4px;">
+                        <input type="text" id="spotlight-add-todo-input" placeholder="+ Add another goal for this session..."
+                            style="flex: 1; padding: 6px 10px; font-size: 12px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); outline: none;">
+                        <button type="button" class="btn outline btn-sm" id="btn-spotlight-add-todo">+ Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Tabs: Planned Targets vs Completed History -->
+    <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+            <div class="tabs" style="margin-bottom: 0;">
+                <button class="tab-btn active session-tab-btn" data-tab="pending">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                    <span>Planned Targets (<span id="count-tab-pending">0</span>)</span>
+                </button>
+                <button class="tab-btn session-tab-btn" data-tab="completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span>Session History (<span id="count-tab-completed">0</span>)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab 1: Planned / Pending Targets -->
+        <div id="session-tab-content-pending" class="session-tab-pane">
+            <div id="session-pending-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Tab 2: Completed / History Sessions -->
+        <div id="session-tab-content-completed" class="session-tab-pane" style="display: none;">
+            <div id="session-completed-list" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

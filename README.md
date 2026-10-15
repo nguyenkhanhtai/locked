@@ -17,6 +17,16 @@ A local, distraction-free study and productivity toolkit tailored for Data Struc
 - **Rich Markdown Notes & LaTeX**: Write notes with full Markdown syntax and render mathematical equations via KaTeX (`$...$` for inline, `$$...$$` for display math).
 - **Inline Mentions (`@`)**: Seamlessly cross-reference projects, problems, and notes with auto-completing search.
 
+### 3. Focus Blocker (Hard Lock)
+- **Unbreakable Commitment (Ulysses Contract)**: Block distracting websites and URLs for a dedicated period (up to 6 hours). Once activated, the backend strictly prevents cancellation or deletion until the timer reaches zero.
+- **Granular Blocking Scopes**:
+  - *Domain level*: Block entire websites (e.g. `facebook.com`, `tiktok.com`).
+  - *Exact link / Path level*: Block specific sub-links (e.g. `youtube.com/shorts`) while retaining access to educational lectures.
+- **Intervention Screen & Countdown**: Intercepts blocked visits with real-time countdown timers and motivational quotes.
+- **Dual Enforcement Mechanisms**:
+  - *Browser Extension (Chrome / Brave / Edge)*: Lightweight Manifest V3 extension in `./extension` with dynamic network request redirection.
+  - *OS-Level Daemon (Linux)*: `sudo python3 scripts/blocker_daemon.py` to sync active locks directly into `/etc/hosts`.
+
 ---
 
 ## Getting Started
@@ -39,7 +49,28 @@ uv pip install -e .
 uv pip install starlette uvicorn jinja2 python-multipart pytest httpx
 ```
 
-### Running the Application
+### Running with Docker (Recommended)
+
+To run the full suite (Web App + Background Blocker Daemon) in the background with Docker:
+
+```bash
+# Build and run all services in the background
+docker compose up -d --build
+
+# View live application and blocker daemon logs
+docker compose logs -f
+
+# Stop and cleanly restore hosts
+docker compose down
+```
+
+When started with Docker Compose, the `blocker-daemon` automatically syncs active focus locks directly into `/etc/hosts` of your host machine, enforcing website blocking across all browsers on your computer without needing local systemd setup!
+
+Open **`http://127.0.0.1:8765`** in your browser. All tasks, study notes, and settings are automatically persisted in `./backend/db` and `./backend/user`.
+
+---
+
+### Running the Application Manually
 
 ```bash
 python backend/run.py

@@ -2,105 +2,220 @@
 
 {% block content %}
 <div id="welcome" class="page active">
-    <!-- Modern Hero Section -->
-    <div style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border-radius: var(--radius-lg); padding: 48px 40px; color: #ffffff; margin-bottom: 36px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;">
-        <div style="position: absolute; right: -20px; top: -20px; width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%); border-radius: 50%;"></div>
-        <div style="position: relative; z-index: 1; max-width: 700px;">
-            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; margin-bottom: 16px; backdrop-filter: blur(8px);">
-                <span>🚀</span> Study Toolkit v0.2.0 • Linux & Cross-Platform
+    <!-- Header Bar -->
+    <div class="header">
+        <div>
+            <h2>Dashboard</h2>
+            <p id="dashboard-date" style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); margin-top: 2px;">Loading workspace...</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn primary btn-sm" onclick="window.openQuickSessionModal ? window.openQuickSessionModal() : window.location.href='/session-target'" title="Bắt đầu phiên làm việc có mục tiêu (Alt+S)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
+                <span>Session Target (Alt+S)</span>
+            </button>
+            <a href="/blocker" class="btn outline btn-sm" style="border-color: rgba(255, 107, 107, 0.4); color: var(--danger);" title="Thiết lập khóa cứng trang web xao nhãng">
+                <svg><use href="#icon-shield"></use></svg>
+                <span>Focus Blocker</span>
+            </a>
+            <a href="/tasks" class="btn outline btn-sm">
+                <svg><use href="#icon-plus"></use></svg>
+                <span>New Task</span>
+            </a>
+            <a href="/study" class="btn outline btn-sm">
+                <svg><use href="#icon-plus"></use></svg>
+                <span>Study Workspace</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Metrics Row -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">Active Tasks</div>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="metric-active-tasks" style="font-size: 24px; font-weight: 700; color: var(--text); font-family: var(--font-mono);">0</span>
+                <span style="font-size: 11px; color: var(--text-muted);">in progress</span>
             </div>
-            <h1 style="font-size: 38px; font-weight: 800; line-height: 1.2; margin-bottom: 12px; letter-spacing: -1px;">
-                Focus, Organize & Master Your Studies
-            </h1>
-            <p style="font-size: 16px; opacity: 0.9; line-height: 1.6; margin-bottom: 24px;">
-                An integrated local study environment built for Data Structures, Algorithms, and course projects. Manage your deadlines with algorithmic scheduling and structure your knowledge in markdown.
-            </p>
-            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <a href="/tasks" class="btn" style="background: #ffffff; color: var(--primary); font-weight: 700; padding: 10px 20px; font-size: 14px; box-shadow: var(--shadow-md);">
-                    <span>✅ Open Tasks</span>
-                </a>
-                <a href="/study" class="btn outline" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); color: #ffffff; font-weight: 700; padding: 10px 20px; font-size: 14px;">
-                    <span>📚 Study Workspace</span>
-                </a>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">Due Today / Soon</div>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="metric-due-soon" style="font-size: 24px; font-weight: 700; color: var(--priority-4); font-family: var(--font-mono);">0</span>
+                <span style="font-size: 11px; color: var(--text-muted);">approaching</span>
+            </div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">Study Projects</div>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="metric-study-projects" style="font-size: 24px; font-weight: 700; color: var(--text); font-family: var(--font-mono);">0</span>
+                <span style="font-size: 11px; color: var(--text-muted);">active topics</span>
+            </div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;">Completed Tasks</div>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="metric-completed-tasks" style="font-size: 24px; font-weight: 700; color: var(--success); font-family: var(--font-mono);">0</span>
+                <span style="font-size: 11px; color: var(--text-muted);">marked done</span>
             </div>
         </div>
     </div>
 
-    <!-- Core Modules Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 36px;">
-        <!-- Module 1: Tasks -->
-        <div class="list-item" style="flex-direction: column; align-items: flex-start; padding: 28px; cursor: pointer; border-radius: var(--radius-lg);" onclick="window.location.href='/tasks'">
-            <div style="width: 48px; height: 48px; border-radius: var(--radius); background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px;">
-                📅
+    <!-- Workspace Grid -->
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; flex: 1;">
+        <!-- Left Column: Upcoming Tasks -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);">Upcoming Tasks</span>
+                <a href="/tasks" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">View All →</a>
             </div>
-            <h3 style="font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 8px;">
-                Task & Deadline Management
-            </h3>
-            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
-                Track assignments, projects, and deadlines. Filter by custom labels and priorities (1 to 5). Features an interactive <strong>Monthly Calendar & Gantt timeline</strong> powered by Min-Heap Interval Partitioning.
-            </p>
-            <span style="font-size: 13px; font-weight: 700; color: var(--primary); display: inline-flex; align-items: center; gap: 6px;">
-                View Tasks & Schedule →
-            </span>
-        </div>
 
-        <!-- Module 2: Study Room -->
-        <div class="list-item" style="flex-direction: column; align-items: flex-start; padding: 28px; cursor: pointer; border-radius: var(--radius-lg);" onclick="window.location.href='/study'">
-            <div style="width: 48px; height: 48px; border-radius: var(--radius); background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px;">
-                🧠
-            </div>
-            <h3 style="font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 8px;">
-                Study Workspace & Notes
-            </h3>
-            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
-                Break down complex topics using <strong>Kanban Problem boards</strong> (Knowledge, Deductions, Hypotheses). Write rich notes with <strong>Markdown & LaTeX math formulas</strong> via KaTeX, plus inline <code>@mention</code> cross-referencing.
-            </p>
-            <span style="font-size: 13px; font-weight: 700; color: #d97706; display: inline-flex; align-items: center; gap: 6px;">
-                Open Study Room →
-            </span>
-        </div>
-    </div>
-
-    <!-- Computer Science & DSA Architecture Overview -->
-    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: var(--shadow-sm);">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
-            <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--surface-subtle); display: flex; align-items: center; justify-content: center; font-size: 18px;">
-                💡
-            </div>
-            <div>
-                <h3 style="font-size: 17px; font-weight: 800; color: var(--text); margin: 0;">Under the Hood: Data Structures & Algorithms</h3>
-                <span style="font-size: 12px; color: var(--text-muted);">Key algorithms implemented inside Locked</span>
+            <div id="dash-task-list" class="list" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; min-height: 220px;">
+                <div style="padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 12px;">Loading tasks...</div>
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-            <div style="background: var(--surface-subtle); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-subtle);">
-                <div style="font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 6px;">
-                    ⚡ Greedy Interval Partitioning (Min-Heap)
+        <!-- Right Column: Study Hub & Quick Scratchpad -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- Study Projects List -->
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);">Study Projects</span>
+                    <a href="/study" style="font-size: 12px; color: var(--primary); text-decoration: none; font-weight: 500;">Workspace →</a>
                 </div>
-                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                    Used in the Calendar / Gantt view to automatically calculate the minimum number of parallel rows required to display overlapping deadlines without collisions in \(O(N \log N)\) time.
-                </p>
+
+                <div id="dash-project-list" class="list" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; min-height: 120px;">
+                    <div style="padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 12px;">Loading study projects...</div>
+                </div>
             </div>
 
-            <div style="background: var(--surface-subtle); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-subtle);">
-                <div style="font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 6px;">
-                    🌲 Tree Hierarchy & Directed Graphs
+            <!-- Quick Scratchpad -->
+            <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);">Quick Scratchpad</span>
+                    <span id="scratchpad-status" style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">Auto-saved</span>
                 </div>
-                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                    Powers the multi-level Project & Sub-project hierarchy, recursive path resolution (Breadcrumbs), and cross-note entity mentions.
-                </p>
-            </div>
-
-            <div style="background: var(--surface-subtle); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-subtle);">
-                <div style="font-weight: 700; color: var(--primary); font-size: 14px; margin-bottom: 6px;">
-                    🛡️ SQLite B-Trees with Referential Integrity
-                </div>
-                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                    Uses indexed SQLite B-Trees with <code>PRAGMA foreign_keys = ON</code> to deliver instant local lookups and cascade cleanups across problems, columns, and records.
-                </p>
+                <textarea id="dash-scratchpad" placeholder="Quick notes, algorithm thoughts, complexity notes, scratchpad..."
+                    style="flex: 1; min-height: 140px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; color: var(--text); font-family: var(--font-mono); font-size: 12px; line-height: 1.6; resize: none; outline: none;"></textarea>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", async () => {
+        // Date display
+        const dateEl = document.getElementById("dashboard-date");
+        if (dateEl) {
+            const now = new Date();
+            dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        // Scratchpad persistence
+        const scratchpad = document.getElementById("dash-scratchpad");
+        const statusEl = document.getElementById("scratchpad-status");
+        if (scratchpad) {
+            scratchpad.value = localStorage.getItem("locked-scratchpad") || "";
+            scratchpad.addEventListener("input", () => {
+                localStorage.setItem("locked-scratchpad", scratchpad.value);
+                if (statusEl) {
+                    statusEl.textContent = "Saved";
+                    setTimeout(() => { statusEl.textContent = "Auto-saved"; }, 1000);
+                }
+            });
+        }
+
+        // Load dashboard stats and items
+        try {
+            // Tasks
+            const taskRes = await fetch("/api/events");
+            const taskData = await taskRes.json();
+            const tasks = taskData.data || [];
+
+            let activeCount = 0;
+            let doneCount = 0;
+            let dueSoonCount = 0;
+            const nowSec = Math.floor(Date.now() / 1000);
+
+            tasks.forEach(t => {
+                if (t.done) doneCount++;
+                else {
+                    activeCount++;
+                    if (t.end_date - nowSec < 86400 * 2) dueSoonCount++;
+                }
+            });
+
+            document.getElementById("metric-active-tasks").textContent = activeCount;
+            document.getElementById("metric-completed-tasks").textContent = doneCount;
+            document.getElementById("metric-due-soon").textContent = dueSoonCount;
+
+            // Render upcoming tasks
+            const taskListEl = document.getElementById("dash-task-list");
+            const pendingTasks = tasks.filter(t => !t.done).slice(0, 6);
+
+            if (pendingTasks.length === 0) {
+                taskListEl.innerHTML = '<div style="padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 12px;">No pending tasks. Press "New Task" above to add one.</div>';
+            } else {
+                taskListEl.innerHTML = pendingTasks.map(t => {
+                    const due = new Date(t.end_date * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    return `
+                        <div class="list-item" style="padding: 8px 12px;">
+                            <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+                                <input type="checkbox" class="dash-task-chk" data-id="${t.id}" style="cursor: pointer;">
+                                <span style="font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${t.name}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                                <span class="badge badge-p${t.priority}">P${t.priority}</span>
+                                <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${due}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+
+                // Bind checkbox events
+                taskListEl.querySelectorAll(".dash-task-chk").forEach(chk => {
+                    chk.addEventListener("change", async (e) => {
+                        const id = e.target.dataset.id;
+                        const task = tasks.find(t => t.id == id);
+                        if (task) {
+                            task.done = e.target.checked;
+                            await fetch("/api/events", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(task)
+                            });
+                            location.reload();
+                        }
+                    });
+                });
+            }
+
+            // Study Projects
+            const projRes = await fetch("/api/study/projects");
+            const projData = await projRes.json();
+            const projects = projData.data || [];
+
+            document.getElementById("metric-study-projects").textContent = projects.length;
+
+            const projListEl = document.getElementById("dash-project-list");
+            if (projects.length === 0) {
+                projListEl.innerHTML = '<div style="padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 12px;">No study projects yet. Open Study Workspace to create one.</div>';
+            } else {
+                projListEl.innerHTML = projects.slice(0, 4).map(p => `
+                    <div class="list-item" style="padding: 8px 12px; cursor: pointer;" onclick="window.location.href='/study'">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                            <span style="font-weight: 500; font-size: 13px; color: var(--text);">${p.name}</span>
+                        </div>
+                        <span style="font-size: 11px; color: var(--text-muted);">Open →</span>
+                    </div>
+                `).join("");
+            }
+        } catch (e) {
+            console.error("Dashboard data load error:", e);
+        }
+    });
+</script>
 {% endblock %}

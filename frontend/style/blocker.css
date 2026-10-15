@@ -1,0 +1,295 @@
+/* Blocker & Hard Lock Styles */
+
+.blocker-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 960px) {
+    .blocker-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lock-banner {
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.12), rgba(252, 196, 25, 0.08));
+    border: 1px solid rgba(255, 107, 107, 0.35);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.lock-banner-icon {
+    width: 22px;
+    height: 22px;
+    color: var(--danger);
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.lock-banner-content h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.lock-banner-content p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.lock-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative;
+    transition: all var(--transition);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lock-card.active-lock {
+    border-color: rgba(255, 107, 107, 0.4);
+    box-shadow: 0 4px 16px rgba(255, 107, 107, 0.08);
+}
+
+.lock-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.lock-target-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: var(--font-mono);
+    word-break: break-all;
+}
+
+.lock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.lock-badge.locked {
+    background: rgba(255, 107, 107, 0.15);
+    color: var(--danger);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.lock-badge.domain-scope {
+    background: rgba(76, 110, 245, 0.12);
+    color: var(--primary);
+    border: 1px solid rgba(76, 110, 245, 0.25);
+}
+
+.lock-badge.exact-scope {
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--routine-color);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+}
+
+.lock-badge.expired {
+    background: rgba(132, 146, 166, 0.12);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.countdown-display {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--danger);
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.countdown-subtext {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.preset-pills-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.preset-pill {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.preset-pill:hover,
+.preset-pill.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.site-preset-pill {
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.site-preset-pill:hover {
+    color: var(--text);
+    border-color: var(--border-hover);
+    background: var(--surface-hover);
+}
+
+.setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 20px;
+}
+
+.setup-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.code-block-box {
+    background: #090a0f;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #38bdf8;
+    overflow-x: auto;
+    margin: 8px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Distraction Interception Page (/blocked) */
+.intervention-container {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.intervention-card {
+    background: var(--surface);
+    border: 1px solid rgba(255, 107, 107, 0.35);
+    border-radius: 14px;
+    padding: 40px;
+    max-width: 580px;
+    width: 100%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 40px rgba(255, 107, 107, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.intervention-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255, 107, 107, 0.15);
+    border: 2px solid rgba(255, 107, 107, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: var(--danger);
+}
+
+.intervention-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+}
+
+.intervention-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.intervention-target {
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--danger);
+    font-weight: 600;
+    word-break: break-all;
+    margin-bottom: 24px;
+}
+
+.intervention-countdown {
+    font-family: var(--font-mono);
+    font-size: 38px;
+    font-weight: 800;
+    color: var(--danger);
+    margin-bottom: 8px;
+    letter-spacing: 0.08em;
+}
+
+.intervention-quote {
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-left: 3px solid var(--primary);
+    padding: 8px 14px;
+    text-align: left;
+    margin: 24px 0;
+    background: var(--surface-subtle);
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+

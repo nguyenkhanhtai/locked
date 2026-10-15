@@ -1,9 +1,32 @@
-// Study Workspace Manager
+// Locked - Study Workspace Manager (Direction 3: Split Workspace Layout)
+
+// ==========================================
+// Global State
+// ==========================================
+const studyState = {
+    projects: [],
+    selectedProjectId: null,
+    currentTree: null,
+    expandedProblems: new Set(),
+    selectedNode: null, // { type: 'project' | 'problem' | 'note', id: number }
+    activeNote: null,
+    activeProblem: null,
+    activeProject: null,
+    noteSaveTimeout: null,
+    problemTitleSaveTimeout: null,
+    noteViewMode: 'split', // 'split' | 'edit' | 'preview'
+    searchQuery: '',
+    mentionMode: false,
+    mentionQuery: '',
+    mentionStartIndex: 0,
+    mentionSelectedIndex: 0,
+    mentionItems: []
+};
 
 // ==========================================
 // Modal Prompt Helper
 // ==========================================
-function promptStudyInput(modalTitle, inputLabel, showDesc, defaultTitle = '') {
+function promptStudyInput(modalTitle, inputLabel, showDesc, defaultTitle = '', defaultDesc = '') {
     return new Promise((resolve) => {
         const overlay = document.getElementById('study-overlay');
         const modal = document.getElementById('study-modal');
@@ -19,7 +42,7 @@ function promptStudyInput(modalTitle, inputLabel, showDesc, defaultTitle = '') {
         titleEl.textContent = modalTitle;
         labelEl.textContent = inputLabel;
         inputTitle.value = defaultTitle;
-        inputDesc.value = '';
+        inputDesc.value = defaultDesc;
 
         groupDesc.style.display = showDesc ? 'flex' : 'none';
 
@@ -52,50 +75,71 @@ function promptStudyInput(modalTitle, inputLabel, showDesc, defaultTitle = '') {
     });
 }
 
-// URL Route Management
+// ==========================================
+// API Helper
+// ==========================================
+async function apiCall(url, method = 'GET', body = null) {
+    try {
+        const options = { method, headers: {} };
+        if (body) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+        const res = await fetch(url, options);
+        return await res.json();
+    } catch (e) {
+        console.error("Study API error:", e);
+        if (window.showToast) window.showToast("Network error: " + e.message, "error");
+        return { status: "500", message: e.message };
+    }
+}
+
+// ==========================================
+// URL Navigation & Routing
+// ==========================================
 function getQueryParams() {
     const params = new URLSearchParams(window.location.search);
     return {
-        view: params.get('view') || 'projects',
-        id: params.get('id'),
-        projectId: params.get('projectId')
+        view: params.get('view') || 'project',
+        id: params.get('id') ? parseInt(params.get('id'), 10) : null,
+        projectId: params.get('projectId') ? parseInt(params.get('projectId'), 10) : null,
+        problemId: params.get('problemId') ? parseInt(params.get('problemId'), 10) : null
     };
 }
 
 function updateUrl(params) {
     const url = new URL(window.location);
     Object.keys(params).forEach(key => {
-        if (params[key]) {
+        if (params[key] !== null && params[key] !== undefined) {
             url.searchParams.set(key, params[key]);
         } else {
             url.searchParams.delete(key);
         }
     });
     window.history.pushState({}, '', url);
-    handleRoute();
 }
 
-function updateBreadcrumbs(path) {
+function updateBreadcrumbs(crumbs) {
     const container = document.getElementById('study-breadcrumbs');
     if (!container) return;
     container.innerHTML = '';
-    path.forEach((p, idx) => {
-        const isLast = idx === path.length - 1;
+    crumbs.forEach((c, idx) => {
+        const isLast = idx === crumbs.length - 1;
         const span = document.createElement('span');
         if (isLast) {
-            span.textContent = p.label;
+            span.textContent = c.label;
             span.style.fontWeight = '700';
             span.style.color = 'var(--text)';
         } else {
             const a = document.createElement('a');
-            a.textContent = p.label;
+            a.textContent = c.label;
             a.href = '#';
             a.style.color = 'var(--primary)';
             a.style.textDecoration = 'none';
             a.style.fontWeight = '600';
             a.onclick = (e) => {
                 e.preventDefault();
-                updateUrl(p.params);
+                if (c.onClick) c.onClick();
             };
             span.appendChild(a);
 
@@ -109,518 +153,786 @@ function updateBreadcrumbs(path) {
     });
 }
 
-function hideAllViews() {
-    document.querySelectorAll('.study-view').forEach(el => el.style.display = 'none');
+function showCanvasView(viewId) {
+    document.querySelectorAll('.study-canvas-view').forEach(el => el.classList.remove('active'));
+    const target = document.getElementById(viewId);
+    if (target) target.classList.add('active');
 }
 
-// API Helper
-async function apiCall(url, method = 'GET', body = null) {
+// ==========================================
+// Markdown, Math & Mermaid Rendering
+// ==========================================
+function initMarkdownAndMermaid() {
     try {
-        const options = { method, headers: {} };
-        if (body) {
-            options.headers['Content-Type'] = 'application/json';
-            options.body = JSON.stringify(body);
+        if (typeof marked !== 'undefined' && !window.markedConfigured) {
+            marked.use({ gfm: true, breaks: true });
+            const katexPlugin = typeof markedKatex === 'function'
+                ? markedKatex
+                : (typeof window !== 'undefined' && typeof window.markedKatex === 'function' ? window.markedKatex : null);
+            if (katexPlugin) {
+                marked.use(katexPlugin({ throwOnError: false }));
+            }
+            window.markedConfigured = true;
         }
-        const res = await fetch(url, options);
-        return await res.json();
+
+        if (typeof mermaid !== 'undefined' && !window.mermaidConfigured) {
+            const currentTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dark';
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: currentTheme,
+                securityLevel: 'loose'
+            });
+            window.mermaidConfigured = true;
+        }
     } catch (e) {
-        console.error("API call error:", e);
-        if (window.showToast) window.showToast("Network error: " + e.message, "error");
-        return { status: "500", message: e.message };
+        console.warn("Markdown/Mermaid initialization warning:", e);
+    }
+}
+
+function renderContent(rawText, containerEl) {
+    if (!rawText || rawText.trim() === '') {
+        containerEl.innerHTML = '<span style="color: var(--text-subtle); font-style: italic;">No content yet...</span>';
+        return;
+    }
+
+    initMarkdownAndMermaid();
+
+    if (typeof marked === 'undefined') {
+        containerEl.innerText = rawText;
+        return;
+    }
+
+    let parsedHtml = marked.parse(rawText);
+
+    // Transform ```mermaid code blocks into <div class="mermaid">...</div>
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = parsedHtml;
+
+    const mermaidCodeBlocks = tempDiv.querySelectorAll('pre code.language-mermaid');
+    mermaidCodeBlocks.forEach(block => {
+        const mermaidDiv = document.createElement('div');
+        mermaidDiv.className = 'mermaid';
+        mermaidDiv.textContent = block.textContent;
+        const pre = block.parentElement;
+        if (pre && pre.parentElement) {
+            pre.parentElement.replaceChild(mermaidDiv, pre);
+        }
+    });
+
+    containerEl.innerHTML = tempDiv.innerHTML;
+
+    // Render Mermaid diagrams asynchronously if present
+    if (typeof mermaid !== 'undefined') {
+        const mermaidElements = containerEl.querySelectorAll('.mermaid');
+        if (mermaidElements.length > 0) {
+            try {
+                mermaid.run({ nodes: mermaidElements }).catch(err => {
+                    console.warn("Mermaid rendering warning:", err);
+                });
+            } catch (err) {
+                console.warn("Mermaid run error:", err);
+            }
+        }
     }
 }
 
 // ==========================================
-// 1. Projects View
+// Project Management & Switcher
 // ==========================================
-async function renderProjectsView() {
-    hideAllViews();
-    const view = document.getElementById('view-projects');
-    if (!view) return;
-    view.style.display = 'flex';
-    updateBreadcrumbs([{ label: 'Projects', params: { view: 'projects', id: null } }]);
+async function loadProjectsList() {
+    const select = document.getElementById('study-project-select');
+    try {
+        const res = await apiCall('/api/study/projects');
+        studyState.projects = (res && Array.isArray(res.data)) ? res.data : [];
 
-    const list = document.getElementById('project-list');
-    list.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">Loading projects...</div>';
+        if (!select) return;
 
-    const res = await apiCall('/api/study/projects');
-    list.innerHTML = '';
-    if (res.data && res.data.length > 0) {
-        res.data.forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'list-item';
-            div.style.cursor = 'pointer';
-            div.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 14px;">
-                    <div style="width: 40px; height: 40px; border-radius: var(--radius); background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 20px;">
-                        📁
-                    </div>
-                    <div>
-                        <h4 style="margin: 0; font-size: 15px; font-weight: 700; color: var(--text);">${p.name}</h4>
-                        <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--text-muted);">${p.description || 'No description'}</p>
-                    </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <button class="btn ghost btn-sm btn-del-proj hover-only" style="color: var(--danger);" title="Delete Project">✕</button>
-                </div>
-            `;
-            div.addEventListener('click', (e) => {
-                if (e.target.classList.contains('btn-del-proj')) return;
-                updateUrl({ view: 'project_details', id: p.id });
-            });
-            div.querySelector('.btn-del-proj').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete project "${p.name}" and all associated items?`)) {
-                    await apiCall('/api/study/projects', 'DELETE', { id: p.id });
-                    if (window.showToast) window.showToast("Project deleted", "info");
-                    renderProjectsView();
-                }
-            });
-            list.appendChild(div);
+        select.innerHTML = '';
+        if (studyState.projects.length === 0) {
+            select.innerHTML = '<option value="">No projects found</option>';
+            studyState.selectedProjectId = null;
+            showCanvasView('view-empty');
+            renderTree();
+            return;
+        }
+
+        studyState.projects.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.name;
+            select.appendChild(opt);
         });
-    } else {
-        list.innerHTML = `
-            <div style="text-align: center; padding: 48px 20px; background: var(--surface); border-radius: var(--radius); border: 1px dashed var(--border);">
-                <div style="font-size: 32px; margin-bottom: 8px;">📂</div>
-                <h4 style="font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px;">No study projects yet</h4>
-                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Create your first project to organize your subjects and notes.</p>
-                <button class="btn primary btn-sm" onclick="document.getElementById('btn-create-project').click()">+ Create Project</button>
+
+        // Pick selected project from URL or first project
+        const q = getQueryParams();
+        if (q.projectId && studyState.projects.some(p => String(p.id) === String(q.projectId))) {
+            studyState.selectedProjectId = Number(q.projectId);
+        } else if (q.id && q.view === 'project' && studyState.projects.some(p => String(p.id) === String(q.id))) {
+            studyState.selectedProjectId = Number(q.id);
+        } else if (!studyState.selectedProjectId || !studyState.projects.some(p => String(p.id) === String(studyState.selectedProjectId))) {
+            studyState.selectedProjectId = studyState.projects[0].id;
+        }
+
+        select.value = studyState.selectedProjectId;
+        await loadProjectTree(studyState.selectedProjectId);
+    } catch (err) {
+        console.error("Failed to load projects list:", err);
+        if (select) {
+            select.innerHTML = '<option value="">⚠️ Failed to load (Click to retry)</option>';
+            select.onclick = () => loadProjectsList();
+        }
+    }
+}
+
+// ==========================================
+// Tree Hierarchy Loader & Renderer
+// ==========================================
+async function loadProjectTree(projectId) {
+    if (!projectId) {
+        studyState.currentTree = null;
+        renderTree();
+        return;
+    }
+
+    const res = await apiCall(`/api/study/tree?project_id=${projectId}`);
+    studyState.currentTree = res.data || { project: null, subprojects: [], problems: [], general_notes: [] };
+    renderTree();
+}
+
+function renderTree() {
+    const container = document.getElementById('study-tree-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!studyState.selectedProjectId || !studyState.currentTree || !studyState.currentTree.project) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 32px 14px; color: var(--text-muted); font-size: 13px;">
+                <div style="font-size: 28px; margin-bottom: 8px;">📂</div>
+                <p style="margin: 0 0 12px 0;">No active project selected</p>
+                <button class="btn primary btn-sm" onclick="handleNewProject()">+ New Project</button>
             </div>
         `;
-    }
-}
-
-// ==========================================
-// 2. Project Details View
-// ==========================================
-async function renderProjectDetailsView(projectId) {
-    hideAllViews();
-    const view = document.getElementById('view-project-details');
-    if (!view) return;
-    view.style.display = 'flex';
-
-    const subprojectList = document.getElementById('subproject-list');
-    const problemList = document.getElementById('problem-list');
-    const recordList = document.getElementById('project-record-list');
-
-    subprojectList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">Loading...</div>';
-    problemList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">Loading...</div>';
-    recordList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">Loading...</div>';
-
-    // Breadcrumbs & Path
-    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
-    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
-    breadcrumbs.unshift({ label: 'Projects', params: { view: 'projects', id: null } });
-    updateBreadcrumbs(breadcrumbs);
-
-    const currentProject = pathRes.data ? pathRes.data[pathRes.data.length - 1] : null;
-    if (currentProject) {
-        document.getElementById('project-details-title').innerText = currentProject.name;
-        document.getElementById('project-details-desc').innerText = currentProject.description || 'No description';
+        return;
     }
 
-    // 1. Sub-projects
-    const subprojectsRes = await apiCall(`/api/study/projects?parent_project_id=${projectId}`);
-    subprojectList.innerHTML = '';
-    if (subprojectsRes.data && subprojectsRes.data.length > 0) {
-        subprojectsRes.data.forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'list-item';
-            div.style.cursor = 'pointer';
-            div.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 18px;">📁</span>
-                    <div>
-                        <div style="font-weight: 700; font-size: 14px; color: var(--text);">${p.name}</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">${p.description || ''}</div>
-                    </div>
-                </div>
-                <button class="btn ghost btn-sm btn-del-proj hover-only" style="color: var(--danger);" title="Delete">✕</button>
-            `;
-            div.addEventListener('click', (e) => {
-                if (e.target.classList.contains('btn-del-proj')) return;
-                updateUrl({ view: 'project_details', id: p.id });
-            });
-            div.querySelector('.btn-del-proj').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete sub-project "${p.name}"?`)) {
-                    await apiCall('/api/study/projects', 'DELETE', { id: p.id });
-                    renderProjectDetailsView(projectId);
-                }
-            });
-            subprojectList.appendChild(div);
-        });
-    } else {
-        subprojectList.innerHTML = '<p style="color: var(--text-subtle); font-size: 13px; margin: 4px 0;">No sub-projects. Click "+ Sub-project" above to create one.</p>';
-    }
+    const tree = studyState.currentTree;
+    const query = studyState.searchQuery.toLowerCase().trim();
 
-    // 2. Problems
-    const problemsRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
-    problemList.innerHTML = '';
-    if (problemsRes.data && problemsRes.data.length > 0) {
-        problemsRes.data.forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'list-item';
-            div.style.cursor = 'pointer';
-            div.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 18px;">📋</span>
-                    <div>
-                        <div style="font-weight: 700; font-size: 14px; color: var(--text);">${p.title}</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">${p.description || 'Open problem board'}</div>
-                    </div>
-                </div>
-                <button class="btn ghost btn-sm btn-del-prob hover-only" style="color: var(--danger);" title="Delete">✕</button>
-            `;
-            div.addEventListener('click', (e) => {
-                if (e.target.classList.contains('btn-del-prob')) return;
-                updateUrl({ view: 'problem', id: p.id, projectId: projectId });
-            });
-            div.querySelector('.btn-del-prob').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete problem board "${p.title}"?`)) {
-                    await apiCall('/api/study/problems', 'DELETE', { id: p.id });
-                    renderProjectDetailsView(projectId);
-                }
-            });
-            problemList.appendChild(div);
-        });
-    } else {
-        problemList.innerHTML = '<p style="color: var(--text-subtle); font-size: 13px; margin: 4px 0;">No problems yet. Click "+ Problem" to add a Kanban board.</p>';
-    }
-
-    // 3. Records
-    const recordsRes = await apiCall(`/api/study/records?project_id=${projectId}`);
-    recordList.innerHTML = '';
-    if (recordsRes.data && recordsRes.data.length > 0) {
-        recordsRes.data.forEach(r => {
-            const div = document.createElement('div');
-            div.className = 'list-item';
-            div.style.cursor = 'pointer';
-            div.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 18px;">📝</span>
-                    <div>
-                        <div style="font-weight: 700; font-size: 14px; color: var(--text);">${r.title}</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">${r.body ? (r.body.length > 50 ? r.body.substring(0, 50) + "..." : r.body) : 'No content'}</div>
-                    </div>
-                </div>
-                <button class="btn ghost btn-sm btn-del-rec hover-only" style="color: var(--danger);" title="Delete">✕</button>
-            `;
-            div.addEventListener('click', (e) => {
-                if (e.target.classList.contains('btn-del-rec')) return;
-                updateUrl({ view: 'record', id: r.id, projectId: projectId });
-            });
-            div.querySelector('.btn-del-rec').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (confirm(`Delete note "${r.title}"?`)) {
-                    await apiCall('/api/study/records', 'DELETE', { id: r.id });
-                    renderProjectDetailsView(projectId);
-                }
-            });
-            recordList.appendChild(div);
-        });
-    } else {
-        recordList.innerHTML = '<p style="color: var(--text-subtle); font-size: 13px; margin: 4px 0;">No notes in this project. Click "+ Note / Record" to create one.</p>';
-    }
-}
-
-// ==========================================
-// 3. Problem View (Kanban)
-// ==========================================
-async function renderProblemView(problemId, projectId) {
-    hideAllViews();
-    const view = document.getElementById('view-problem');
-    if (!view) return;
-    view.style.display = 'flex';
-
-    const kanban = document.getElementById('problem-kanban');
-    kanban.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">Loading columns...</div>';
-
-    const probRes = await apiCall(`/api/study/problems?project_id=${projectId}`);
-    let problemTitle = "Problem Kanban";
-    const titleInput = document.getElementById('problem-title');
-    const editor = document.getElementById('problem-description-editor');
-    const preview = document.getElementById('problem-description-preview');
-    const descContainer = document.getElementById('problem-desc-container');
-
-    // Default: view mode
-    window.isProblemDescVisible = true;
-    editor.style.display = 'none';
-    preview.style.display = 'block';
-
-    if (probRes.data) {
-        const p = probRes.data.find(x => String(x.id) === String(problemId));
-        if (p) {
-            problemTitle = p.title;
-            titleInput.value = p.title;
-            editor.value = p.description || '';
-            updatePreview(editor.value, preview);
+    // 1. Root Project Node
+    const projNode = document.createElement('div');
+    const isProjActive = studyState.selectedNode && studyState.selectedNode.type === 'project' && studyState.selectedNode.id === tree.project.id;
+    projNode.className = `tree-node ${isProjActive ? 'active' : ''}`;
+    projNode.innerHTML = `
+        <span class="tree-node-icon">
+            <svg width="15" height="15"><use href="#icon-folder"></use></svg>
+        </span>
+        <span class="tree-node-title" style="font-weight: 700;">${tree.project.name}</span>
+        <div class="tree-node-actions">
+            <button class="tree-mini-btn btn-tree-add-prob-icon" title="Add problem">+</button>
+        </div>
+    `;
+    projNode.onclick = (e) => {
+        if (e.target.closest('.btn-tree-add-prob-icon')) {
+            e.stopPropagation();
+            handleNewProblem();
+            return;
         }
+        openProjectView(tree.project);
+    };
+    container.appendChild(projNode);
+
+    // 2. Sub-projects (if any)
+    if (tree.subprojects && tree.subprojects.length > 0) {
+        const subLabel = document.createElement('div');
+        subLabel.className = 'study-tree-section-label';
+        subLabel.textContent = 'Sub-projects';
+        container.appendChild(subLabel);
+
+        tree.subprojects.forEach(sub => {
+            const subNode = document.createElement('div');
+            subNode.className = 'tree-node tree-node-indent-1';
+            subNode.innerHTML = `
+                <span class="tree-node-icon"><svg width="14" height="14"><use href="#icon-folder"></use></svg></span>
+                <span class="tree-node-title">${sub.name}</span>
+            `;
+            subNode.onclick = () => {
+                switchProject(sub.id);
+            };
+            container.appendChild(subNode);
+        });
     }
 
-    // Breadcrumbs
-    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
-    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
-    breadcrumbs.unshift({ label: 'Projects', params: { view: 'projects', id: null } });
-    breadcrumbs.push({ label: problemTitle, params: { view: 'problem', id: problemId, projectId: projectId } });
-    updateBreadcrumbs(breadcrumbs);
+    // Filter problems and notes if search query exists
+    let displayProblems = tree.problems || [];
+    let displayGeneralNotes = tree.general_notes || [];
 
-    let problemSaveTimeout = null;
-    const saveProblem = async () => {
-        await apiCall('/api/study/problems', 'PUT', {
-            id: problemId,
-            title: titleInput.value.trim(),
-            description: editor.value.trim()
+    if (query) {
+        displayProblems = displayProblems.filter(p => {
+            const matchProb = p.title.toLowerCase().includes(query) || (p.description && p.description.toLowerCase().includes(query));
+            const matchNotes = p.notes && p.notes.some(n => n.title.toLowerCase().includes(query) || (n.body && n.body.toLowerCase().includes(query)));
+            if (matchNotes) studyState.expandedProblems.add(p.id);
+            return matchProb || matchNotes;
         });
+
+        displayGeneralNotes = displayGeneralNotes.filter(n =>
+            n.title.toLowerCase().includes(query) || (n.body && n.body.toLowerCase().includes(query))
+        );
+    }
+
+    // 3. Problems Section
+    const probLabel = document.createElement('div');
+    probLabel.className = 'study-tree-section-label';
+    probLabel.innerHTML = `
+        <span>Problems (${displayProblems.length})</span>
+        <button class="tree-mini-btn" id="tree-sec-add-problem" title="Add Problem">+</button>
+    `;
+    container.appendChild(probLabel);
+    probLabel.querySelector('#tree-sec-add-problem').onclick = (e) => {
+        e.stopPropagation();
+        handleNewProblem();
+    };
+
+    if (displayProblems.length === 0) {
+        const emptyProb = document.createElement('div');
+        emptyProb.style.padding = '4px 12px 10px 12px';
+        emptyProb.style.fontSize = '12px';
+        emptyProb.style.color = 'var(--text-subtle)';
+        emptyProb.style.fontStyle = 'italic';
+        emptyProb.textContent = query ? 'No matching problems' : 'No problems yet';
+        container.appendChild(emptyProb);
+    } else {
+        displayProblems.forEach(prob => {
+            const isExpanded = studyState.expandedProblems.has(prob.id);
+            const isProbActive = studyState.selectedNode && studyState.selectedNode.type === 'problem' && studyState.selectedNode.id === prob.id;
+
+            const probRow = document.createElement('div');
+            probRow.className = `tree-node tree-node-indent-1 ${isProbActive ? 'active' : ''}`;
+            const noteCount = (prob.notes && prob.notes.length) || 0;
+
+            probRow.innerHTML = `
+                <span class="tree-node-chevron ${isExpanded ? 'expanded' : ''}">▶</span>
+                <span class="tree-node-icon"><svg width="14" height="14"><use href="#icon-tasks"></use></svg></span>
+                <span class="tree-node-title" title="${prob.title}">${prob.title}</span>
+                <span class="tree-node-badge">${noteCount}</span>
+                <div class="tree-node-actions">
+                    <button class="tree-mini-btn btn-add-note-inline" title="Add note to problem">+</button>
+                    <button class="tree-mini-btn danger btn-del-prob-inline" title="Delete problem">✕</button>
+                </div>
+            `;
+
+            // Chevron toggle
+            const chevron = probRow.querySelector('.tree-node-chevron');
+            chevron.onclick = (e) => {
+                e.stopPropagation();
+                if (studyState.expandedProblems.has(prob.id)) {
+                    studyState.expandedProblems.delete(prob.id);
+                } else {
+                    studyState.expandedProblems.add(prob.id);
+                }
+                renderTree();
+            };
+
+            // Inline buttons
+            probRow.querySelector('.btn-add-note-inline').onclick = (e) => {
+                e.stopPropagation();
+                handleNewNote(prob.id);
+            };
+
+            probRow.querySelector('.btn-del-prob-inline').onclick = async (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete problem "${prob.title}" and its notes?`)) {
+                    await apiCall('/api/study/problems', 'DELETE', { id: prob.id });
+                    if (window.showToast) window.showToast("Problem deleted", "info");
+                    await loadProjectTree(studyState.selectedProjectId);
+                    openProjectView(studyState.currentTree.project);
+                }
+            };
+
+            probRow.onclick = () => {
+                openProblemView(prob);
+            };
+
+            container.appendChild(probRow);
+
+            // If expanded, render notes under this problem
+            if (isExpanded) {
+                if (prob.notes && prob.notes.length > 0) {
+                    prob.notes.forEach(note => {
+                        const isNoteActive = studyState.selectedNode && studyState.selectedNode.type === 'note' && studyState.selectedNode.id === note.id;
+                        const noteRow = document.createElement('div');
+                        noteRow.className = `tree-node tree-node-indent-2 ${isNoteActive ? 'active' : ''}`;
+                        noteRow.innerHTML = `
+                            <span class="tree-node-icon"><svg width="13" height="13"><use href="#icon-file"></use></svg></span>
+                            <span class="tree-node-title" title="${note.title}">${note.title}</span>
+                            <div class="tree-node-actions">
+                                <button class="tree-mini-btn danger btn-del-note-inline" title="Delete note">✕</button>
+                            </div>
+                        `;
+
+                        noteRow.querySelector('.btn-del-note-inline').onclick = async (e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete note "${note.title}"?`)) {
+                                await apiCall('/api/study/records', 'DELETE', { id: note.id });
+                                if (window.showToast) window.showToast("Note deleted", "info");
+                                await loadProjectTree(studyState.selectedProjectId);
+                                if (studyState.activeNote && studyState.activeNote.id === note.id) {
+                                    openProblemView(prob);
+                                }
+                            }
+                        };
+
+                        noteRow.onclick = () => {
+                            openNoteView(note, prob);
+                        };
+
+                        container.appendChild(noteRow);
+                    });
+                } else {
+                    const emptyNote = document.createElement('div');
+                    emptyNote.className = 'tree-node tree-node-indent-2';
+                    emptyNote.style.color = 'var(--text-subtle)';
+                    emptyNote.style.fontSize = '11px';
+                    emptyNote.style.fontStyle = 'italic';
+                    emptyNote.innerHTML = `<span>No notes yet. <a href="#" style="color: var(--primary);">+ Add</a></span>`;
+                    emptyNote.onclick = (e) => {
+                        e.preventDefault();
+                        handleNewNote(prob.id);
+                    };
+                    container.appendChild(emptyNote);
+                }
+            }
+        });
+    }
+
+    // 4. General Notes Section
+    const genLabel = document.createElement('div');
+    genLabel.className = 'study-tree-section-label';
+    genLabel.innerHTML = `
+        <span>General Notes (${displayGeneralNotes.length})</span>
+        <button class="tree-mini-btn" id="tree-sec-add-gen-note" title="Add General Note">+</button>
+    `;
+    container.appendChild(genLabel);
+    genLabel.querySelector('#tree-sec-add-gen-note').onclick = (e) => {
+        e.stopPropagation();
+        handleNewNote(null);
+    };
+
+    if (displayGeneralNotes.length === 0) {
+        const emptyGen = document.createElement('div');
+        emptyGen.style.padding = '4px 12px 10px 12px';
+        emptyGen.style.fontSize = '12px';
+        emptyGen.style.color = 'var(--text-subtle)';
+        emptyGen.style.fontStyle = 'italic';
+        emptyGen.textContent = query ? 'No matching notes' : 'No general notes';
+        container.appendChild(emptyGen);
+    } else {
+        displayGeneralNotes.forEach(note => {
+            const isNoteActive = studyState.selectedNode && studyState.selectedNode.type === 'note' && studyState.selectedNode.id === note.id;
+            const noteRow = document.createElement('div');
+            noteRow.className = `tree-node tree-node-indent-1 ${isNoteActive ? 'active' : ''}`;
+            noteRow.innerHTML = `
+                <span class="tree-node-icon"><svg width="13" height="13"><use href="#icon-file"></use></svg></span>
+                <span class="tree-node-title" title="${note.title}">${note.title}</span>
+                <div class="tree-node-actions">
+                    <button class="tree-mini-btn danger btn-del-gen-note-inline" title="Delete note">✕</button>
+                </div>
+            `;
+
+            noteRow.querySelector('.btn-del-gen-note-inline').onclick = async (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete note "${note.title}"?`)) {
+                    await apiCall('/api/study/records', 'DELETE', { id: note.id });
+                    if (window.showToast) window.showToast("Note deleted", "info");
+                    await loadProjectTree(studyState.selectedProjectId);
+                    if (studyState.activeNote && studyState.activeNote.id === note.id) {
+                        openProjectView(tree.project);
+                    }
+                }
+            };
+
+            noteRow.onclick = () => {
+                openNoteView(note, null);
+            };
+
+            container.appendChild(noteRow);
+        });
+    }
+}
+
+// Switch Active Project
+async function switchProject(projectId) {
+    studyState.selectedProjectId = projectId;
+    const select = document.getElementById('study-project-select');
+    if (select) select.value = projectId;
+    await loadProjectTree(projectId);
+    if (studyState.currentTree && studyState.currentTree.project) {
+        openProjectView(studyState.currentTree.project);
+    }
+}
+
+// ==========================================
+// Canvas Views Implementations
+// ==========================================
+
+// 1. Open Project Overview View
+function openProjectView(project) {
+    if (!project) return;
+    studyState.activeProject = project;
+    studyState.activeProblem = null;
+    studyState.activeNote = null;
+    studyState.selectedNode = { type: 'project', id: project.id };
+
+    updateUrl({ view: 'project', id: project.id, projectId: project.id, problemId: null });
+    updateBreadcrumbs([
+        { label: 'Projects', onClick: () => openProjectView(project) },
+        { label: project.name }
+    ]);
+
+    showCanvasView('view-project');
+    renderTree();
+
+    document.getElementById('canvas-project-title').textContent = project.name;
+    document.getElementById('canvas-project-desc').textContent = project.description || 'No project description provided.';
+
+    const tree = studyState.currentTree || { problems: [], general_notes: [], subprojects: [] };
+    const totalNotes = (tree.problems ? tree.problems.reduce((acc, p) => acc + (p.notes ? p.notes.length : 0), 0) : 0) + (tree.general_notes ? tree.general_notes.length : 0);
+
+    document.getElementById('stat-problems-count').textContent = (tree.problems ? tree.problems.length : 0);
+    document.getElementById('stat-notes-count').textContent = totalNotes;
+    document.getElementById('stat-subprojects-count').textContent = (tree.subprojects ? tree.subprojects.length : 0);
+
+    // Render Problems Quick List
+    const probContainer = document.getElementById('project-overview-problems');
+    probContainer.innerHTML = '';
+    if (tree.problems && tree.problems.length > 0) {
+        tree.problems.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.style.cursor = 'pointer';
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <svg width="15" height="15" style="color: var(--primary);"><use href="#icon-tasks"></use></svg>
+                    <div>
+                        <div style="font-weight: 600; font-size: 13px; color: var(--text);">${p.title}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">${(p.notes ? p.notes.length : 0)} notes attached</div>
+                    </div>
+                </div>
+                <button class="btn outline btn-sm" style="font-size: 11px; padding: 2px 8px;">Open</button>
+            `;
+            item.onclick = () => openProblemView(p);
+            probContainer.appendChild(item);
+        });
+    } else {
+        probContainer.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); font-style: italic; padding: 10px 0;">No problems yet in this project.</div>';
+    }
+
+    // Render General Notes Quick List
+    const notesContainer = document.getElementById('project-overview-notes');
+    notesContainer.innerHTML = '';
+    if (tree.general_notes && tree.general_notes.length > 0) {
+        tree.general_notes.forEach(n => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.style.cursor = 'pointer';
+            item.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <svg width="15" height="15" style="color: var(--primary);"><use href="#icon-file"></use></svg>
+                    <div style="font-weight: 600; font-size: 13px; color: var(--text);">${n.title}</div>
+                </div>
+                <button class="btn outline btn-sm" style="font-size: 11px; padding: 2px 8px;">Open</button>
+            `;
+            item.onclick = () => openNoteView(n, null);
+            notesContainer.appendChild(item);
+        });
+    } else {
+        notesContainer.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); font-style: italic; padding: 10px 0;">No general notes in this project.</div>';
+    }
+}
+
+// 2. Open Problem View (Statement + Attached Notes Grid)
+async function openProblemView(prob) {
+    if (!prob) return;
+    studyState.activeProblem = prob;
+    studyState.activeNote = null;
+    studyState.selectedNode = { type: 'problem', id: prob.id };
+    studyState.expandedProblems.add(prob.id);
+
+    const proj = studyState.currentTree ? studyState.currentTree.project : null;
+    updateUrl({ view: 'problem', id: prob.id, projectId: prob.project_id || (proj ? proj.id : null) });
+    updateBreadcrumbs([
+        { label: proj ? proj.name : 'Project', onClick: () => proj && openProjectView(proj) },
+        { label: prob.title }
+    ]);
+
+    showCanvasView('view-problem');
+    renderTree();
+
+    const titleInput = document.getElementById('canvas-problem-title');
+    titleInput.value = prob.title;
+
+    // Handle problem title auto-save
+    titleInput.oninput = () => {
+        if (studyState.problemTitleSaveTimeout) clearTimeout(studyState.problemTitleSaveTimeout);
+        studyState.problemTitleSaveTimeout = setTimeout(async () => {
+            const newTitle = titleInput.value.trim() || 'Untitled Problem';
+            await apiCall('/api/study/problems', 'PUT', { id: prob.id, title: newTitle });
+            prob.title = newTitle;
+            loadProjectTree(studyState.selectedProjectId);
+        }, 600);
+    };
+
+    // Problem Statement Preview
+    const descPreview = document.getElementById('canvas-problem-desc-preview');
+    const descEditorContainer = document.getElementById('canvas-problem-desc-editor-container');
+    const descEditor = document.getElementById('canvas-problem-desc-editor');
+    const btnToggleDesc = document.getElementById('btn-toggle-problem-desc');
+
+    renderContent(prob.description || '', descPreview);
+    descEditor.value = prob.description || '';
+    descEditorContainer.style.display = 'none';
+
+    btnToggleDesc.onclick = () => {
+        const isEditing = descEditorContainer.style.display === 'flex';
+        descEditorContainer.style.display = isEditing ? 'none' : 'flex';
+        btnToggleDesc.textContent = isEditing ? 'Edit Statement' : 'Hide Editor';
+        if (!isEditing) descEditor.focus();
+    };
+
+    descPreview.ondblclick = () => {
+        descEditorContainer.style.display = 'flex';
+        btnToggleDesc.textContent = 'Hide Editor';
+        descEditor.focus();
+    };
+
+    document.getElementById('btn-cancel-problem-desc').onclick = () => {
+        descEditor.value = prob.description || '';
+        descEditorContainer.style.display = 'none';
+        btnToggleDesc.textContent = 'Edit Statement';
+    };
+
+    document.getElementById('btn-save-problem-desc').onclick = async () => {
+        const newDesc = descEditor.value;
+        await apiCall('/api/study/problems', 'PUT', { id: prob.id, description: newDesc });
+        prob.description = newDesc;
+        renderContent(newDesc, descPreview);
+        descEditorContainer.style.display = 'none';
+        btnToggleDesc.textContent = 'Edit Statement';
+        if (window.showToast) window.showToast("Problem statement saved", "success");
+        loadProjectTree(studyState.selectedProjectId);
+    };
+
+    // Load and render problem notes grid
+    const notesRes = await apiCall(`/api/study/records?problem_id=${prob.id}`);
+    const notes = notesRes.data || [];
+    prob.notes = notes;
+
+    document.getElementById('canvas-problem-notes-count').textContent = notes.length;
+    const grid = document.getElementById('canvas-problem-notes-grid');
+    grid.innerHTML = '';
+
+    if (notes.length > 0) {
+        notes.forEach(note => {
+            const card = document.createElement('div');
+            card.className = 'problem-note-card';
+            const updatedDate = note.updated_at ? new Date(note.updated_at * 1000).toLocaleDateString() : '';
+            const snippet = note.body ? note.body.replace(/[#*`$\n]/g, ' ').substring(0, 140) : 'No content yet';
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <h4 class="problem-note-card-title">${note.title}</h4>
+                    <button class="tree-mini-btn danger btn-del-card-note" title="Delete note">✕</button>
+                </div>
+                <div class="problem-note-card-snippet">${snippet}</div>
+                <div class="problem-note-card-footer">
+                    <span>${updatedDate}</span>
+                    <span style="color: var(--primary); font-weight: 600;">Edit Note →</span>
+                </div>
+            `;
+
+            card.querySelector('.btn-del-card-note').onclick = async (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete note "${note.title}"?`)) {
+                    await apiCall('/api/study/records', 'DELETE', { id: note.id });
+                    if (window.showToast) window.showToast("Note deleted", "info");
+                    openProblemView(prob);
+                    loadProjectTree(studyState.selectedProjectId);
+                }
+            };
+
+            card.onclick = () => {
+                openNoteView(note, prob);
+            };
+
+            grid.appendChild(card);
+        });
+    } else {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; padding: 36px 16px; text-align: center; background: var(--surface-subtle); border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-muted);">
+                <div style="font-size: 26px; margin-bottom: 6px;">💡</div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px;">No notes or solutions yet</div>
+                <div style="font-size: 12px; margin-bottom: 14px;">Add your ideas, edge cases, algorithms, or code walkthroughs for this problem.</div>
+                <button class="btn primary btn-sm" id="btn-empty-prob-add-note">+ Add First Note</button>
+            </div>
+        `;
+        grid.querySelector('#btn-empty-prob-add-note').onclick = () => handleNewNote(prob.id);
+    }
+}
+
+// 3. Open Note Editor & Preview View
+async function openNoteView(noteRef, parentProblem) {
+    if (!noteRef) return;
+
+    // Fetch full record if needed
+    const res = await apiCall(`/api/study/records/single?id=${noteRef.id}`);
+    const note = res.data || noteRef;
+
+    studyState.activeNote = note;
+    studyState.activeProblem = parentProblem;
+    studyState.selectedNode = { type: 'note', id: note.id };
+
+    const proj = studyState.currentTree ? studyState.currentTree.project : null;
+    updateUrl({
+        view: 'note',
+        id: note.id,
+        projectId: note.project_id || (proj ? proj.id : null),
+        problemId: note.problem_id || null
+    });
+
+    const crumbs = [];
+    if (proj) {
+        crumbs.push({ label: proj.name, onClick: () => openProjectView(proj) });
+    }
+    if (parentProblem) {
+        crumbs.push({ label: parentProblem.title, onClick: () => openProblemView(parentProblem) });
+    }
+    crumbs.push({ label: note.title });
+    updateBreadcrumbs(crumbs);
+
+    showCanvasView('view-note');
+    renderTree();
+
+    const titleInput = document.getElementById('canvas-note-title');
+    const editor = document.getElementById('canvas-note-editor');
+    const preview = document.getElementById('canvas-note-preview-content');
+    const statusEl = document.getElementById('canvas-note-save-status');
+    const tagEl = document.getElementById('canvas-note-breadcrumb-tag');
+
+    titleInput.value = note.title;
+    editor.value = note.body || '';
+    statusEl.textContent = 'Saved';
+    statusEl.style.color = 'var(--text-muted)';
+
+    if (parentProblem) {
+        tagEl.innerHTML = `Problem: <strong>${parentProblem.title}</strong>`;
+    } else {
+        tagEl.innerHTML = `General Note &bull; <strong>${proj ? proj.name : 'Project'}</strong>`;
+    }
+
+    renderContent(editor.value, preview);
+
+    // Auto-save logic
+    const triggerAutoSave = () => {
+        if (studyState.noteSaveTimeout) clearTimeout(studyState.noteSaveTimeout);
+        statusEl.textContent = 'Saving...';
+        statusEl.style.color = 'var(--warning)';
+
+        studyState.noteSaveTimeout = setTimeout(async () => {
+            const newTitle = titleInput.value.trim() || 'Untitled Note';
+            const newBody = editor.value;
+
+            await apiCall('/api/study/records', 'PUT', {
+                id: note.id,
+                title: newTitle,
+                body: newBody,
+                problem_id: note.problem_id
+            });
+
+            note.title = newTitle;
+            note.body = newBody;
+            statusEl.textContent = 'Saved';
+            statusEl.style.color = 'var(--text-muted)';
+            loadProjectTree(studyState.selectedProjectId);
+        }, 700);
     };
 
     titleInput.oninput = () => {
-        if (problemSaveTimeout) clearTimeout(problemSaveTimeout);
-        problemSaveTimeout = setTimeout(saveProblem, 800);
+        triggerAutoSave();
     };
 
     editor.oninput = () => {
-        if (problemSaveTimeout) clearTimeout(problemSaveTimeout);
-        updatePreview(editor.value, preview);
-        problemSaveTimeout = setTimeout(saveProblem, 800);
+        renderContent(editor.value, preview);
+        triggerAutoSave();
+        handleMentionInput(editor);
     };
 
-    preview.ondblclick = () => {
-        editor.style.display = 'block';
-        preview.style.display = 'none';
-        editor.focus();
-    };
-
-    editor.onblur = () => {
-        editor.style.display = 'none';
-        preview.style.display = 'block';
-        saveProblem();
-    };
-
-    document.getElementById('btn-toggle-problem-desc').onclick = () => {
-        window.isProblemDescVisible = !window.isProblemDescVisible;
-        descContainer.style.display = window.isProblemDescVisible ? 'flex' : 'none';
-    };
-
-    // Columns
-    const res = await apiCall(`/api/study/columns?problem_id=${problemId}`);
-    kanban.innerHTML = '';
-
-    if (res.data && res.data.length > 0) {
-        for (const col of res.data) {
-            const colDiv = document.createElement('div');
-            colDiv.className = 'kanban-col';
-            colDiv.innerHTML = `
-                <div class="kanban-header">
-                    <input type="text" class="col-name-input" value="${col.name}"
-                        style="font-size: 14px; font-weight: 700; border: none; background: transparent; color: var(--text); outline: none; padding: 2px; flex: 1;">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <button class="btn outline btn-sm btn-add-card" style="padding: 2px 8px; font-size: 11px;">+ Card</button>
-                        <button class="btn ghost btn-sm btn-del-col hover-only" style="padding: 2px 6px; color: var(--danger);" title="Delete Column">✕</button>
-                    </div>
-                </div>
-                <div class="kanban-cards"></div>
-            `;
-
-            kanban.appendChild(colDiv);
-
-            // Fetch cards
-            const cardsRes = await apiCall(`/api/study/problem_cards?column_id=${col.id}`);
-            const cardsContainer = colDiv.querySelector('.kanban-cards');
-            if (cardsRes.data && cardsRes.data.length > 0) {
-                cardsRes.data.forEach(card => {
-                    const cardDiv = document.createElement('div');
-                    cardDiv.className = 'kanban-card';
-                    cardDiv.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                            <span style="font-size: 13px; font-weight: 600; color: var(--text);">${card.record_title}</span>
-                            <button class="btn ghost btn-sm btn-del-card hover-only" style="padding: 0 4px; color: var(--danger); font-size: 11px;" title="Remove">✕</button>
-                        </div>
-                    `;
-                    cardDiv.addEventListener('click', (e) => {
-                        if (e.target.classList.contains('btn-del-card')) return;
-                        updateUrl({ view: 'record', id: card.record_id, projectId: projectId });
-                    });
-                    cardDiv.querySelector('.btn-del-card').addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        await apiCall('/api/study/problem_cards', 'DELETE', { id: card.id });
-                        renderProblemView(problemId, projectId);
-                    });
-                    cardsContainer.appendChild(cardDiv);
-                });
-            } else {
-                cardsContainer.innerHTML = '<div style="color: var(--text-subtle); font-size: 12px; padding: 10px 0; text-align: center; font-style: italic;">No cards</div>';
-            }
-
-            // Column name edit
-            colDiv.querySelector('.col-name-input').addEventListener('blur', async (e) => {
-                const newName = e.target.value.trim();
-                if (newName && newName !== col.name) {
-                    await apiCall('/api/study/columns', 'PUT', { id: col.id, name: newName });
-                    col.name = newName;
-                }
-            });
-
-            // Column delete
-            colDiv.querySelector('.btn-del-col').addEventListener('click', async () => {
-                if (confirm(`Delete column "${col.name}"?`)) {
-                    await apiCall('/api/study/columns', 'DELETE', { id: col.id });
-                    renderProblemView(problemId, projectId);
-                }
-            });
-
-            // Add card
-            colDiv.querySelector('.btn-add-card').addEventListener('click', async () => {
-                const input = await promptStudyInput("New Problem Card", "Card / Note Title:", true);
-                if (input) {
-                    const recRes = await apiCall('/api/study/records', 'POST', {
-                        title: input.title,
-                        body: input.desc,
-                        project_id: projectId
-                    });
-                    await apiCall('/api/study/problem_cards', 'POST', {
-                        column_id: col.id,
-                        record_id: recRes.data.id,
-                        order_index: cardsRes.data ? cardsRes.data.length : 0
-                    });
-                    renderProblemView(problemId, projectId);
-                }
-            });
-        }
-    } else {
-        kanban.innerHTML = '<div style="color: var(--text-subtle); font-size: 13px;">No columns in this problem. Click "+ Add Column" to start.</div>';
-    }
-}
-
-// ==========================================
-// 4. Record View (Markdown & LaTeX)
-// ==========================================
-let recordSaveTimeout = null;
-let mentionMode = false;
-let mentionQuery = '';
-let mentionStartIndex = -1;
-let mentionItems = [];
-let mentionSelectedIndex = 0;
-
-async function renderRecordView(recordId, projectId) {
-    hideAllViews();
-    const view = document.getElementById('view-record');
-    if (!view) return;
-    view.style.display = 'flex';
-
-    const titleInput = document.getElementById('record-title');
-    const editor = document.getElementById('record-editor');
-    const preview = document.getElementById('record-preview');
-    const saveIndicator = document.getElementById('record-save-indicator');
-
-    titleInput.value = 'Loading...';
-    editor.value = '';
-
-    window.isRecordEditMode = false;
-    editor.style.display = 'none';
-    preview.style.display = 'block';
-
-    const res = await apiCall(`/api/study/records/single?id=${recordId}`);
-    let recordTitle = "Note";
-    if (res.data) {
-        recordTitle = res.data.title;
-        titleInput.value = res.data.title;
-        editor.value = res.data.body || '';
-        updatePreview(editor.value, preview);
-    }
-
-    const pathRes = await apiCall(`/api/study/projects/path?id=${projectId}`);
-    const breadcrumbs = pathRes.data ? pathRes.data.map(p => ({ label: p.name, params: { view: 'project_details', id: p.id } })) : [];
-    breadcrumbs.unshift({ label: 'Projects', params: { view: 'projects', id: null } });
-    breadcrumbs.push({ label: recordTitle, params: { view: 'record', id: recordId, projectId: projectId } });
-    updateBreadcrumbs(breadcrumbs);
-
-    const saveRecord = async () => {
-        saveIndicator.innerText = "Saving...";
-        await apiCall('/api/study/records', 'PUT', {
-            id: recordId,
-            title: titleInput.value.trim(),
-            body: editor.value.trim()
-        });
-        saveIndicator.innerText = "Saved";
-    };
-
-    const handleInput = () => {
-        if (recordSaveTimeout) clearTimeout(recordSaveTimeout);
-        updatePreview(editor.value, preview);
-        saveIndicator.innerText = "Unsaved";
-        recordSaveTimeout = setTimeout(saveRecord, 800);
-
-        // Mention check
-        const text = editor.value;
-        const cursor = editor.selectionStart;
-        const beforeCursor = text.substring(0, cursor);
-        const match = beforeCursor.match(/(?:^|\s)@([^@\n]*)$/);
-        if (match) {
-            mentionMode = true;
-            mentionStartIndex = cursor - match[1].length - 1;
-            mentionQuery = match[1];
-            renderMentionDropdown(editor);
-        } else {
-            closeMentionDropdown();
-        }
-    };
-
-    titleInput.oninput = handleInput;
-    editor.oninput = handleInput;
     editor.onkeydown = handleEditorKeydown;
 
-    document.getElementById('btn-toggle-preview').onclick = () => {
-        window.isRecordEditMode = !window.isRecordEditMode;
-        if (window.isRecordEditMode) {
-            editor.style.display = 'block';
-            preview.style.display = 'block';
-            editor.focus();
-        } else {
-            editor.style.display = 'none';
-            preview.style.display = 'block';
-            saveRecord();
-        }
-    };
-
     preview.ondblclick = () => {
-        if (!window.isRecordEditMode) {
-            window.isRecordEditMode = true;
-            editor.style.display = 'block';
-            preview.style.display = 'block';
-            editor.focus();
-        }
+        setNoteWorkspaceMode('edit');
+        editor.focus();
     };
 }
 
-// Mention Logic
+// Note Workspace View Modes: 'split' | 'edit' | 'preview'
+function setNoteWorkspaceMode(mode) {
+    studyState.noteViewMode = mode;
+    const container = document.getElementById('canvas-note-workspace');
+    if (!container) return;
+
+    container.classList.remove('mode-edit', 'mode-preview');
+    if (mode === 'edit') container.classList.add('mode-edit');
+    if (mode === 'preview') container.classList.add('mode-preview');
+
+    document.querySelectorAll('#btn-note-view-split, #btn-note-view-edit, #btn-note-view-preview').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`btn-note-view-${mode}`);
+    if (activeBtn) activeBtn.classList.add('active');
+}
+
+// ==========================================
+// Mentions Logic (@note or @problem)
+// ==========================================
 function closeMentionDropdown() {
-    mentionMode = false;
-    const dropdown = document.getElementById('mention-dropdown');
+    studyState.mentionMode = false;
+    const dropdown = document.getElementById('note-mention-dropdown');
     if (dropdown) {
         dropdown.style.display = 'none';
         dropdown.innerHTML = '';
     }
 }
 
+async function handleMentionInput(editor) {
+    const text = editor.value;
+    const cursor = editor.selectionStart;
+    const beforeCursor = text.substring(0, cursor);
+    const match = beforeCursor.match(/(?:^|\s)@([^@\n]*)$/);
+
+    if (match) {
+        studyState.mentionMode = true;
+        studyState.mentionStartIndex = cursor - match[1].length - 1;
+        studyState.mentionQuery = match[1];
+        renderMentionDropdown(editor);
+    } else {
+        closeMentionDropdown();
+    }
+}
+
 async function renderMentionDropdown(editor) {
-    const dropdown = document.getElementById('mention-dropdown');
-    if (!dropdown || !mentionMode) return;
+    const dropdown = document.getElementById('note-mention-dropdown');
+    if (!dropdown || !studyState.mentionMode) return;
 
-    const res = await apiCall(`/api/study/search?q=${encodeURIComponent(mentionQuery)}`);
-    mentionItems = res.data || [];
+    const res = await apiCall(`/api/study/search?q=${encodeURIComponent(studyState.mentionQuery)}`);
+    studyState.mentionItems = res.data || [];
 
-    if (mentionItems.length === 0) {
+    if (studyState.mentionItems.length === 0) {
         dropdown.style.display = 'none';
         return;
     }
 
-    if (mentionSelectedIndex >= mentionItems.length) mentionSelectedIndex = mentionItems.length - 1;
-    if (mentionSelectedIndex < 0) mentionSelectedIndex = 0;
+    if (studyState.mentionSelectedIndex >= studyState.mentionItems.length) studyState.mentionSelectedIndex = studyState.mentionItems.length - 1;
+    if (studyState.mentionSelectedIndex < 0) studyState.mentionSelectedIndex = 0;
 
     dropdown.innerHTML = '';
-    mentionItems.forEach((item, index) => {
+    studyState.mentionItems.forEach((item, index) => {
         const div = document.createElement('div');
         div.style.padding = '8px 12px';
         div.style.cursor = 'pointer';
@@ -630,15 +942,15 @@ async function renderMentionDropdown(editor) {
         div.style.gap = '8px';
         div.style.fontSize = '13px';
 
-        if (index === mentionSelectedIndex) {
+        if (index === studyState.mentionSelectedIndex) {
             div.style.background = 'var(--primary-light)';
         }
 
-        let icon = item.type === 'record' ? '📝' : (item.type === 'problem' ? '📋' : '📁');
-        div.innerHTML = `<span>${icon}</span><span style="font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</span><span style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">${item.type}</span>`;
+        const iconSvg = item.type === 'record' ? '<svg width="13" height="13"><use href="#icon-file"></use></svg>' : (item.type === 'problem' ? '<svg width="13" height="13"><use href="#icon-tasks"></use></svg>' : '<svg width="13" height="13"><use href="#icon-folder"></use></svg>');
+        div.innerHTML = `${iconSvg}<span style="font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</span><span style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase;">${item.type}</span>`;
 
         div.addEventListener('mouseenter', () => {
-            mentionSelectedIndex = index;
+            studyState.mentionSelectedIndex = index;
             renderMentionDropdown(editor);
         });
 
@@ -651,18 +963,18 @@ async function renderMentionDropdown(editor) {
     });
 
     dropdown.style.display = 'flex';
-    dropdown.style.top = '12px';
-    dropdown.style.left = '12px';
+    dropdown.style.top = '16px';
+    dropdown.style.left = '16px';
 }
 
 function insertMention(item, editor) {
     const text = editor.value;
-    const before = text.substring(0, mentionStartIndex);
+    const before = text.substring(0, studyState.mentionStartIndex);
     const after = text.substring(editor.selectionStart);
     const link = `[${item.name}](/study?view=${item.type}&id=${item.id}&projectId=${item.project_id})`;
 
     editor.value = before + link + ' ' + after;
-    editor.selectionStart = editor.selectionEnd = mentionStartIndex + link.length + 1;
+    editor.selectionStart = editor.selectionEnd = studyState.mentionStartIndex + link.length + 1;
 
     closeMentionDropdown();
     editor.dispatchEvent(new Event('input'));
@@ -670,22 +982,22 @@ function insertMention(item, editor) {
 }
 
 function handleEditorKeydown(e) {
-    if (mentionMode) {
+    if (studyState.mentionMode) {
         if (e.key === 'Escape') {
             closeMentionDropdown();
             e.preventDefault();
         } else if (e.key === 'ArrowDown') {
-            mentionSelectedIndex++;
+            studyState.mentionSelectedIndex++;
             renderMentionDropdown(e.target);
             e.preventDefault();
         } else if (e.key === 'ArrowUp') {
-            mentionSelectedIndex--;
+            studyState.mentionSelectedIndex--;
             renderMentionDropdown(e.target);
             e.preventDefault();
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (mentionItems.length > 0) {
-                insertMention(mentionItems[mentionSelectedIndex], e.target);
+            if (studyState.mentionItems.length > 0) {
+                insertMention(studyState.mentionItems[studyState.mentionSelectedIndex], e.target);
             } else {
                 closeMentionDropdown();
             }
@@ -693,121 +1005,251 @@ function handleEditorKeydown(e) {
     }
 }
 
-// Markdown & Math Preview
-function updatePreview(markdownText, previewEl) {
-    if (!markdownText || markdownText.trim() === '') {
-        previewEl.innerHTML = '<span style="color: var(--text-subtle); font-style: italic;">Double-click to write notes in Markdown and LaTeX...</span>';
-        return;
-    }
-
-    if (typeof marked === 'undefined') {
-        previewEl.innerText = markdownText;
-        return;
-    }
-
-    if (!window.markedConfigured) {
-        marked.use({ gfm: true, breaks: true });
-        if (typeof markedKatex !== 'undefined') {
-            marked.use(markedKatex({ throwOnError: false }));
+// ==========================================
+// User Action Handlers (Creation & Deletion)
+// ==========================================
+async function handleNewProject(parentProjectId = null) {
+    const input = await promptStudyInput(parentProjectId ? "Create Sub-project" : "Create New Project", "Project Name:", true);
+    if (input) {
+        const res = await apiCall('/api/study/projects', 'POST', {
+            name: input.title,
+            description: input.desc,
+            parent_project_id: parentProjectId
+        });
+        if (window.showToast) window.showToast("Project created!", "success");
+        await loadProjectsList();
+        if (res.data && res.data.id) {
+            switchProject(res.data.id);
         }
-        window.markedConfigured = true;
-    }
-
-    previewEl.innerHTML = marked.parse(markdownText);
-}
-
-// ==========================================
-// Route Dispatcher & Event Handlers
-// ==========================================
-function handleRoute() {
-    const params = getQueryParams();
-    if (params.view === 'projects' || !params.view) {
-        renderProjectsView();
-    } else if (params.view === 'project_details') {
-        renderProjectDetailsView(params.id);
-    } else if (params.view === 'problem') {
-        renderProblemView(params.id, params.projectId);
-    } else if (params.view === 'record') {
-        renderRecordView(params.id, params.projectId);
-    } else {
-        renderProjectsView();
     }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    // Project actions
-    const btnCreateProject = document.getElementById('btn-create-project');
-    if (btnCreateProject) {
-        btnCreateProject.addEventListener('click', async () => {
-            const input = await promptStudyInput("Create New Project", "Project Name:", true);
-            if (input) {
-                await apiCall('/api/study/projects', 'POST', { name: input.title, description: input.desc });
-                if (window.showToast) window.showToast("Project created!", "success");
-                renderProjectsView();
-            }
+async function handleNewProblem() {
+    if (!studyState.selectedProjectId) {
+        if (window.showToast) window.showToast("Please create or select a project first", "warning");
+        return;
+    }
+    const input = await promptStudyInput("New Problem", "Problem Title:", true);
+    if (input) {
+        const res = await apiCall('/api/study/problems', 'POST', {
+            project_id: studyState.selectedProjectId,
+            title: input.title,
+            description: input.desc
         });
+        if (window.showToast) window.showToast("Problem created!", "success");
+        await loadProjectTree(studyState.selectedProjectId);
+        if (res.data) {
+            openProblemView(res.data);
+        }
+    }
+}
+
+async function handleNewNote(problemId = null) {
+    if (!studyState.selectedProjectId) {
+        if (window.showToast) window.showToast("Please create or select a project first", "warning");
+        return;
+    }
+    const modalTitle = problemId ? "New Note for Problem" : "New General Note";
+    const input = await promptStudyInput(modalTitle, "Note Title:", true);
+    if (input) {
+        const res = await apiCall('/api/study/records', 'POST', {
+            title: input.title,
+            body: input.desc,
+            project_id: studyState.selectedProjectId,
+            problem_id: problemId
+        });
+        if (window.showToast) window.showToast("Note created!", "success");
+        await loadProjectTree(studyState.selectedProjectId);
+
+        let parentProb = null;
+        if (problemId && studyState.currentTree && studyState.currentTree.problems) {
+            parentProb = studyState.currentTree.problems.find(p => p.id === problemId);
+        }
+        if (res.data) {
+            openNoteView(res.data, parentProb);
+        }
+    }
+}
+
+// ==========================================
+// Initialization & Event Listeners
+// ==========================================
+async function initStudyWorkspace() {
+    try {
+        initMarkdownAndMermaid();
+    } catch (e) {
+        console.warn("Markdown/Mermaid init error:", e);
     }
 
-    const btnCreateSubproject = document.getElementById('btn-create-subproject');
-    if (btnCreateSubproject) {
-        btnCreateSubproject.addEventListener('click', async () => {
-            const params = getQueryParams();
-            if (params.id) {
-                const input = await promptStudyInput("New Sub-project", "Sub-project Name:", true);
-                if (input) {
-                    await apiCall('/api/study/projects', 'POST', { name: input.title, description: input.desc, parent_project_id: params.id });
-                    if (window.showToast) window.showToast("Sub-project created!", "success");
-                    renderProjectDetailsView(params.id);
+    // Project Dropdown Change
+    const projectSelect = document.getElementById('study-project-select');
+    if (projectSelect) {
+        projectSelect.onchange = (e) => {
+            const val = parseInt(e.target.value, 10);
+            if (val) switchProject(val);
+        };
+    }
+
+    // Tree Header Buttons
+    const btnTreeNewProject = document.getElementById('btn-tree-new-project');
+    if (btnTreeNewProject) btnTreeNewProject.onclick = () => handleNewProject(null);
+
+    const btnTreeAddProblem = document.getElementById('btn-tree-add-problem');
+    if (btnTreeAddProblem) btnTreeAddProblem.onclick = () => handleNewProblem();
+
+    const btnTreeAddNote = document.getElementById('btn-tree-add-note');
+    if (btnTreeAddNote) btnTreeAddNote.onclick = () => {
+        // If a problem is currently selected, add note to that problem! Otherwise general note.
+        const activeProbId = (studyState.selectedNode && studyState.selectedNode.type === 'problem') ? studyState.selectedNode.id : null;
+        handleNewNote(activeProbId);
+    };
+
+    const btnTreeAddSubproject = document.getElementById('btn-tree-add-subproject');
+    if (btnTreeAddSubproject) btnTreeAddSubproject.onclick = () => handleNewProject(studyState.selectedProjectId);
+
+    // Tree Search Filter
+    const treeSearch = document.getElementById('study-tree-search');
+    if (treeSearch) {
+        treeSearch.oninput = (e) => {
+            studyState.searchQuery = e.target.value;
+            renderTree();
+        };
+    }
+
+    // Welcome State Buttons
+    const btnWelcomeAddProblem = document.getElementById('btn-welcome-add-problem');
+    if (btnWelcomeAddProblem) btnWelcomeAddProblem.onclick = () => handleNewProblem();
+
+    const btnWelcomeAddNote = document.getElementById('btn-welcome-add-note');
+    if (btnWelcomeAddNote) btnWelcomeAddNote.onclick = () => handleNewNote(null);
+
+    // Project View Buttons
+    const btnProjNewProblem = document.getElementById('btn-proj-new-problem');
+    if (btnProjNewProblem) btnProjNewProblem.onclick = () => handleNewProblem();
+
+    const btnProjNewNote = document.getElementById('btn-proj-new-note');
+    if (btnProjNewNote) btnProjNewNote.onclick = () => handleNewNote(null);
+
+    const btnQuickAddProblem = document.getElementById('btn-quick-add-problem');
+    if (btnQuickAddProblem) btnQuickAddProblem.onclick = () => handleNewProblem();
+
+    const btnQuickAddNote = document.getElementById('btn-quick-add-note');
+    if (btnQuickAddNote) btnQuickAddNote.onclick = () => handleNewNote(null);
+
+    const btnProjDelete = document.getElementById('btn-proj-delete');
+    if (btnProjDelete) {
+        btnProjDelete.onclick = async () => {
+            if (!studyState.selectedProjectId) return;
+            const projName = studyState.currentTree && studyState.currentTree.project ? studyState.currentTree.project.name : 'this project';
+            if (confirm(`Delete project "${projName}" and all associated problems and notes?`)) {
+                await apiCall('/api/study/projects', 'DELETE', { id: studyState.selectedProjectId });
+                if (window.showToast) window.showToast("Project deleted", "info");
+                studyState.selectedProjectId = null;
+                await loadProjectsList();
+            }
+        };
+    }
+
+    // Problem View Buttons
+    const btnProblemAddNote = document.getElementById('btn-problem-add-note');
+    if (btnProblemAddNote) btnProblemAddNote.onclick = () => {
+        if (studyState.activeProblem) handleNewNote(studyState.activeProblem.id);
+    };
+
+    const btnProblemAddNoteInline = document.getElementById('btn-problem-add-note-inline');
+    if (btnProblemAddNoteInline) btnProblemAddNoteInline.onclick = () => {
+        if (studyState.activeProblem) handleNewNote(studyState.activeProblem.id);
+    };
+
+    const btnProblemDelete = document.getElementById('btn-problem-delete');
+    if (btnProblemDelete) {
+        btnProblemDelete.onclick = async () => {
+            if (!studyState.activeProblem) return;
+            if (confirm(`Delete problem "${studyState.activeProblem.title}" and its notes?`)) {
+                await apiCall('/api/study/problems', 'DELETE', { id: studyState.activeProblem.id });
+                if (window.showToast) window.showToast("Problem deleted", "info");
+                await loadProjectTree(studyState.selectedProjectId);
+                if (studyState.currentTree && studyState.currentTree.project) {
+                    openProjectView(studyState.currentTree.project);
                 }
             }
-        });
+        };
     }
 
-    const btnCreateProblem = document.getElementById('btn-create-problem');
-    if (btnCreateProblem) {
-        btnCreateProblem.addEventListener('click', async () => {
-            const params = getQueryParams();
-            if (params.id) {
-                const input = await promptStudyInput("New Problem", "Problem Title:", true);
-                if (input) {
-                    await apiCall('/api/study/problems', 'POST', { project_id: params.id, title: input.title, description: input.desc });
-                    if (window.showToast) window.showToast("Problem board created!", "success");
-                    renderProjectDetailsView(params.id);
+    // Note View Mode Buttons
+    const btnModeSplit = document.getElementById('btn-note-view-split');
+    if (btnModeSplit) btnModeSplit.onclick = () => setNoteWorkspaceMode('split');
+
+    const btnModeEdit = document.getElementById('btn-note-view-edit');
+    if (btnModeEdit) btnModeEdit.onclick = () => setNoteWorkspaceMode('edit');
+
+    const btnModePreview = document.getElementById('btn-note-view-preview');
+    if (btnModePreview) btnModePreview.onclick = () => setNoteWorkspaceMode('preview');
+
+    const btnNoteDelete = document.getElementById('btn-canvas-note-delete');
+    if (btnNoteDelete) {
+        btnNoteDelete.onclick = async () => {
+            if (!studyState.activeNote) return;
+            if (confirm(`Delete note "${studyState.activeNote.title}"?`)) {
+                await apiCall('/api/study/records', 'DELETE', { id: studyState.activeNote.id });
+                if (window.showToast) window.showToast("Note deleted", "info");
+                await loadProjectTree(studyState.selectedProjectId);
+                if (studyState.activeProblem) {
+                    openProblemView(studyState.activeProblem);
+                } else if (studyState.currentTree && studyState.currentTree.project) {
+                    openProjectView(studyState.currentTree.project);
                 }
             }
-        });
+        };
     }
 
-    const btnCreateRecord = document.getElementById('btn-create-project-record');
-    if (btnCreateRecord) {
-        btnCreateRecord.addEventListener('click', async () => {
-            const params = getQueryParams();
-            if (params.id) {
-                const input = await promptStudyInput("New Note", "Note Title:", true);
-                if (input) {
-                    const res = await apiCall('/api/study/records', 'POST', { title: input.title, body: input.desc, project_id: params.id });
-                    if (window.showToast) window.showToast("Note created!", "success");
-                    updateUrl({ view: 'record', id: res.data.id, projectId: params.id });
-                }
+    // Load projects and route
+    try {
+        await loadProjectsList();
+    } catch (e) {
+        console.error("loadProjectsList error:", e);
+    }
+
+    try {
+        const q = getQueryParams();
+        if (q.view === 'note' && q.id) {
+            let parentProb = null;
+            if (q.problemId && studyState.currentTree && studyState.currentTree.problems) {
+                parentProb = studyState.currentTree.problems.find(p => p.id === q.problemId);
             }
-        });
+            await openNoteView({ id: q.id }, parentProb);
+        } else if (q.view === 'problem' && q.id) {
+            const prob = studyState.currentTree && studyState.currentTree.problems ? studyState.currentTree.problems.find(p => p.id === q.id) : { id: q.id, title: 'Problem' };
+            await openProblemView(prob);
+        } else if (studyState.currentTree && studyState.currentTree.project) {
+            openProjectView(studyState.currentTree.project);
+        }
+    } catch (e) {
+        console.error("Initial routing error:", e);
     }
 
-    const btnCreateColumn = document.getElementById('btn-create-column');
-    if (btnCreateColumn) {
-        btnCreateColumn.addEventListener('click', async () => {
-            const params = getQueryParams();
-            if (params.id) {
-                const input = await promptStudyInput("New Column", "Column Name:", false);
-                if (input) {
-                    await apiCall('/api/study/columns', 'POST', { problem_id: params.id, name: input.title });
-                    if (window.showToast) window.showToast("Column added!", "success");
-                    renderProblemView(params.id, params.projectId);
-                }
+    window.addEventListener('popstate', async () => {
+        const currentQ = getQueryParams();
+        if (currentQ.projectId && currentQ.projectId !== studyState.selectedProjectId) {
+            await switchProject(currentQ.projectId);
+        }
+        if (currentQ.view === 'note' && currentQ.id) {
+            let parentProb = null;
+            if (currentQ.problemId && studyState.currentTree && studyState.currentTree.problems) {
+                parentProb = studyState.currentTree.problems.find(p => p.id === currentQ.problemId);
             }
-        });
-    }
+            openNoteView({ id: currentQ.id }, parentProb);
+        } else if (currentQ.view === 'problem' && currentQ.id) {
+            const prob = studyState.currentTree && studyState.currentTree.problems ? studyState.currentTree.problems.find(p => p.id === currentQ.id) : { id: currentQ.id, title: 'Problem' };
+            openProblemView(prob);
+        } else if (studyState.currentTree && studyState.currentTree.project) {
+            openProjectView(studyState.currentTree.project);
+        }
+    });
+}
 
-    window.addEventListener('popstate', handleRoute);
-    handleRoute();
-});
+if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", initStudyWorkspace);
+} else {
+    initStudyWorkspace();
+}

@@ -1,0 +1,91 @@
+{% extends "shared/base.html" %}
+
+{% block content %}
+<div class="intervention-container">
+    <div class="intervention-card">
+        <div class="intervention-icon-wrapper">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+        </div>
+
+        <h1 class="intervention-title">TRANG WEB NÀY ĐANG BỊ KHÓA</h1>
+        <p class="intervention-subtitle">
+            Bạn đã tự kích hoạt <strong>Khóa Cứng (Hard Lock)</strong> cho trang web này.<br>
+            Hệ thống không thể mở khóa hay xóa quy tắc cho đến khi hết thời gian đếm ngược.
+        </p>
+
+        {% if target_url or rule %}
+        <div class="intervention-target">
+            🚫 {{ target_url or rule.url_pattern }}
+        </div>
+        {% endif %}
+
+        {% if rule and rule.blocked_until %}
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 4px;">
+                Thời gian mở khóa sau:
+            </div>
+            <div class="intervention-countdown" id="intervention-timer" data-blocked-until="{{ rule.blocked_until }}">
+                {{ rule.formatted_remaining }}
+            </div>
+            {% if rule.reason %}
+            <div style="font-size: 13px; color: var(--primary); font-weight: 600; margin-top: 6px;">
+                🎯 Mục tiêu: "{{ rule.reason }}"
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="intervention-quote">
+            "Kỷ luật là cầu nối giữa mục tiêu và thành tựu. Đừng đánh đổi mục tiêu dài hạn của bạn cho vài phút xao nhãng ngắn ngủi."
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <a href="/study" class="btn primary">
+                <svg width="14" height="14"><use href="#icon-study"></use></svg>
+                <span>Mở Study Workspace</span>
+            </a>
+            <a href="/tasks" class="btn outline">
+                <svg width="14" height="14"><use href="#icon-tasks"></use></svg>
+                <span>Xem Tasks & Deadline</span>
+            </a>
+            <a href="/blocker" class="btn ghost">
+                <svg width="14" height="14"><use href="#icon-shield"></use></svg>
+                <span>Quản lý Focus Blocker</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const timerEl = document.getElementById("intervention-timer");
+    if (!timerEl) return;
+
+    const until = parseInt(timerEl.getAttribute("data-blocked-until"), 10);
+    if (!until) return;
+
+    function updateInterventionTimer() {
+        const now = Math.floor(Date.now() / 1000);
+        const remaining = Math.max(0, until - now);
+
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.floor((remaining % 3600) / 60);
+        const seconds = remaining % 60;
+
+        timerEl.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+        if (remaining <= 0) {
+            timerEl.textContent = "00:00:00 - ĐÃ MỞ KHÓA!";
+            timerEl.style.color = "var(--success)";
+        }
+    }
+
+    updateInterventionTimer();
+    setInterval(updateInterventionTimer, 1000);
+});
+</script>
+{% endblock %}
+

@@ -19,8 +19,8 @@
 }
 
 .task-row.task-done {
-    opacity: 0.6;
-    background: #fafafa;
+    opacity: 0.55;
+    background: var(--surface-subtle);
 }
 
 .task-row.task-done .task-title {

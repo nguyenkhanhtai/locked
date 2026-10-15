@@ -15,7 +15,8 @@ def main():
     print(f"🌐 Open http://{host}:{port} in your browser")
     print("🛑 Press Ctrl+C to stop the server")
     print("==================================================")
-    uvicorn.run("app:app", host=host, port=port, reload=True, app_dir=backend_dir)
+    reload_flag = os.environ.get("LOCKED_RELOAD", "true").lower() in ("true", "1", "yes")
+    uvicorn.run("app:app", host=host, port=port, reload=reload_flag, app_dir=backend_dir)
 
 if __name__ == '__main__':
     main()
